@@ -1,6 +1,7 @@
 import { SwaggerUtils } from "@multiversx/sdk-nestjs-common";
 import { ApiProperty } from "@nestjs/swagger";
 import { Token } from "./token";
+import { TokenDrwa } from "./token.drwa";
 import { TokenRoles } from "./token.roles";
 
 export class TokenDetailed extends Token {
@@ -29,4 +30,7 @@ export class TokenDetailed extends Token {
 
   @ApiProperty({ type: Boolean, nullable: true })
   canTransfer: boolean | undefined = undefined;
+
+  @ApiProperty({ type: TokenDrwa, nullable: true })
+  drwa: TokenDrwa | undefined = undefined;
 }

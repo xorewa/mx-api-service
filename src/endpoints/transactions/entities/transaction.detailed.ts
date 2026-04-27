@@ -4,6 +4,7 @@ import { Transaction } from './transaction';
 import { TransactionReceipt } from './transaction.receipt';
 import { TransactionLog } from './transaction.log';
 import { TransactionOperation } from './transaction.operation';
+import { TransactionDrwa } from './transaction.drwa';
 import { ComplexityEstimation } from '@multiversx/sdk-nestjs-common';
 export class TransactionDetailed extends Transaction {
   constructor(init?: Partial<TransactionDetailed>) {
@@ -50,4 +51,7 @@ export class TransactionDetailed extends Transaction {
 
   @ApiProperty({ type: String, nullable: true })
   relayedVersion: string | undefined = undefined;
+
+  @ApiProperty({ type: TransactionDrwa, nullable: true })
+  drwa: TransactionDrwa | undefined = undefined;
 }

@@ -12,6 +12,7 @@ import { TransactionDetailed } from '../../../endpoints/transactions/entities/tr
 import { TransactionOptionalFieldOption } from '../../../endpoints/transactions/entities/transaction.optional.field.options';
 import { MiniBlockType } from '../../../endpoints/miniblocks/entities/mini.block.type';
 import { TransactionStatus } from '../../../endpoints/transactions/entities/transaction.status';
+import { DrwaTransactionService } from '../../../endpoints/transactions/drwa.transaction.service';
 
 describe('TransactionGetService', () => {
   let service: TransactionGetService;
@@ -125,6 +126,7 @@ describe('TransactionGetService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TransactionGetService,
+        DrwaTransactionService,
         { provide: IndexerService, useValue: indexerServiceMock },
         { provide: GatewayService, useValue: gatewayServiceMock },
         { provide: TokenTransferService, useValue: tokenTransferServiceMock },
@@ -491,6 +493,79 @@ describe('TransactionGetService', () => {
       const result = await service.tryGetTransactionFromElastic(mockTransactionHash, [TransactionOptionalFieldOption.logs]);
 
       expect(result).toBeNull();
+    });
+
+    it('should materialize DRWA denial from smart contract result return message', async () => {
+      const transactionWithScResults = createMockTransaction({
+        hasScResults: true,
+        hasOperations: true,
+        scResults: [{ hash: 'scr1', prevTxHash: mockTransactionHash }],
+      });
+      indexerService.getTransaction.mockResolvedValue(transactionWithScResults);
+      indexerService.getTransactionScResults.mockResolvedValue([
+        { hash: 'scr1', prevTxHash: mockTransactionHash, returnMessage: 'execution failed DRWA_KYC_REQUIRED holder is not eligible' },
+      ] as any);
+
+      const result = await service.tryGetTransactionFromElastic(mockTransactionHash);
+
+      expect(result?.drwa?.isDrwa).toBe(true);
+      expect(result?.drwa?.denialCode).toBe('DRWA_KYC_REQUIRED');
+      expect(result?.drwa?.denialMessage).toContain('DRWA_KYC_REQUIRED');
+    });
+
+    it('should materialize DRWA compliance signal from root logs', async () => {
+      indexerService.getTransaction.mockResolvedValue(createMockTransaction({
+        function: 'updateComplianceStatus',
+      }));
+      jest.spyOn(service, 'getTransactionLogsFromElastic').mockResolvedValue([
+        new TransactionLog({
+          id: mockTransactionHash,
+          events: [
+            new TransactionLogEvent({
+              identifier: 'drwaTransferAllowed',
+              address: mockReceiver,
+              topics: [],
+              data: '',
+            }),
+          ],
+        }),
+      ]);
+
+      const result = await service.tryGetTransactionFromElastic(mockTransactionHash, [TransactionOptionalFieldOption.logs]);
+
+      expect(result?.drwa?.isDrwa).toBe(true);
+      expect(result?.drwa?.hasComplianceSignal).toBe(true);
+      expect(result?.drwa?.denialCode).toBeUndefined();
+    });
+
+    it('should materialize DRWA presence from indexed operation even without denial message', async () => {
+      indexerService.getTransaction.mockResolvedValue(createMockTransaction({
+        hasScResults: false,
+        hasOperations: true,
+        operation: 'drwa',
+        function: 'drwaPolicySync',
+      }));
+
+      const result = await service.tryGetTransactionFromElastic(mockTransactionHash);
+
+      expect(result?.drwa?.isDrwa).toBe(true);
+      expect(result?.drwa?.hasComplianceSignal).toBe(false);
+    });
+
+    it('should not materialize DRWA for generic transport failures', async () => {
+      const transactionWithScResults = createMockTransaction({
+        hasScResults: true,
+        hasOperations: true,
+        scResults: [{ hash: 'scr1', prevTxHash: mockTransactionHash }],
+      });
+      indexerService.getTransaction.mockResolvedValue(transactionWithScResults);
+      indexerService.getTransactionScResults.mockResolvedValue([
+        { hash: 'scr1', prevTxHash: mockTransactionHash, returnMessage: 'gateway timeout while fetching receipt' },
+      ] as any);
+
+      const result = await service.tryGetTransactionFromElastic(mockTransactionHash);
+
+      expect(result?.drwa).toBeUndefined();
     });
   });
 

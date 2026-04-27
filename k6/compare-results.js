@@ -1,16 +1,26 @@
 const fs = require('fs');
+const path = require('path');
+
+// Sanitize a CLI-provided file path: resolve to absolute, reject traversal outside cwd.
+function safePath(raw) {
+  const resolved = path.resolve(raw);
+  if (!resolved.startsWith(process.cwd())) {
+    throw new Error(`Path traversal rejected: ${raw} resolves outside working directory`);
+  }
+  return resolved;
+}
 
 function generateComparisonTable(baseCommitHash, baseMetricsPath, targetCommitHash, targetMetricsPath, outputPath) {
-  // Load JSON outputs from k6
-  const baseMetrics = JSON.parse(fs.readFileSync(baseMetricsPath, 'utf8'));
-  const targetMetrics = JSON.parse(fs.readFileSync(targetMetricsPath, 'utf8'));
+  // Load JSON outputs from k6 (paths sanitized against traversal)
+  const baseMetrics = JSON.parse(fs.readFileSync(safePath(baseMetricsPath), 'utf8'));
+  const targetMetrics = JSON.parse(fs.readFileSync(safePath(targetMetricsPath), 'utf8'));
 
   const baseData = extractMetrics(baseMetrics);
   const targetData = extractMetrics(targetMetrics);
 
   const table = generateTable(baseCommitHash, baseData, targetCommitHash, targetData);
 
-  fs.writeFileSync(outputPath, table);
+  fs.writeFileSync(safePath(outputPath), table);
 }
 
 function extractMetrics(metrics) {

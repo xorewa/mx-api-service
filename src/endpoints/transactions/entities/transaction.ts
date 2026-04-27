@@ -86,6 +86,9 @@ export class Transaction {
   @ApiProperty({ type: String, nullable: true, required: false })
   function: string | undefined = undefined;
 
+  @ApiProperty({ type: String, nullable: true, required: false })
+  operation: string | undefined = undefined;
+
   @ApiProperty({ type: TransactionAction, nullable: true, required: false })
   action: TransactionAction | undefined = undefined;
 

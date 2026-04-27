@@ -28,4 +28,11 @@ export interface Collection {
   api_holderCount?: number;
   nft_scamInfoType?: string;
   nft_scamInfoDescription?: string;
+  drwa?: {
+    regulated?: boolean;
+    policyId?: string;
+    tokenPolicyVersion?: number;
+    globalPause?: boolean;
+    strictAuditorMode?: boolean;
+  };
 }

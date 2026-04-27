@@ -8,6 +8,7 @@ import { PoolModule } from "../pool/pool.module";
 import { TokenModule } from "../tokens/token.module";
 import { UsernameModule } from "../usernames/username.module";
 import { TransactionActionModule } from "./transaction-action/transaction.action.module";
+import { DrwaTransactionService } from "./drwa.transaction.service";
 import { TransactionGetService } from "./transaction.get.service";
 import { TransactionPriceService } from "./transaction.price.service";
 import { TransactionService } from "./transaction.service";
@@ -25,10 +26,10 @@ import { TransactionService } from "./transaction.service";
     DataApiModule,
   ],
   providers: [
-    TransactionGetService, TransactionPriceService, TransactionService,
+    DrwaTransactionService, TransactionGetService, TransactionPriceService, TransactionService,
   ],
   exports: [
-    TransactionGetService, TransactionPriceService, TransactionService,
+    DrwaTransactionService, TransactionGetService, TransactionPriceService, TransactionService,
   ],
 })
 export class TransactionModule { }

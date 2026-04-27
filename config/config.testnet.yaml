@@ -199,6 +199,14 @@ stakingV5Inflation:
   - 930117
 # november 2025 testnet supply: 21_242_828. first year rewards = 50% * (8.75% * supply) = 930117
 # TODO: calculate the inflation for upcoming years based on the inflation decay
+drwa:
+  enabled: true
+  elasticIndices:
+    holderCompliance: drwa-holder-compliance
+    denials: drwa-denials
+    attestations: drwa-attestations
+    tokenPolicies: drwa-token-policies
+  trustedEmitters: []
 nftProcess:
   parallelism: 1
   maxRetries: 3

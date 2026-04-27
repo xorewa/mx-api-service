@@ -39,6 +39,8 @@ import { PoolController } from "./pool/pool.controller";
 import { TpsController } from "./tps/tps.controller";
 import { ApplicationController } from "./applications/application.controller";
 import { EventsController } from "./events/events.controller";
+import { DrwaController } from "./drwa/drwa.controller";
+import { DrwaModule } from "./drwa/drwa.module";
 
 @Module({})
 export class EndpointsControllersModule {
@@ -50,6 +52,7 @@ export class EndpointsControllersModule {
       TokenController, TransactionController, UsernameController, VmQueryController, WaitingListController,
       HealthCheckController, DappConfigController, WebsocketController, TransferController,
       ProcessNftsPublicController, TransactionsBatchController, ApplicationController, EventsController,
+      DrwaController,
     ];
 
     const isMarketplaceFeatureEnabled = configuration().features?.marketplace?.enabled ?? false;
@@ -82,6 +85,7 @@ export class EndpointsControllersModule {
         EndpointsServicesModule,
         ProxyModule,
         PluginModule,
+        DrwaModule,
       ],
       providers: [
         DynamicModuleUtils.getNestJsApiConfigService(),

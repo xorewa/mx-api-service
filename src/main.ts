@@ -36,6 +36,7 @@ import { NotWritableError } from './common/indexer/entities/not.writable.error';
 import * as bodyParser from 'body-parser';
 import * as requestIp from 'request-ip';
 import compression from 'compression';
+import helmet from 'helmet';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { WebsocketSubscriptionModule } from './crons/websocket/websocket.subscription.module';
 
@@ -204,9 +205,12 @@ async function configurePublicApp(publicApp: NestExpressApplication, apiConfigSe
     }));
   }
 
+  publicApp.use(helmet());
   publicApp.use(bodyParser.json({ limit: '1mb' }));
   publicApp.use(requestIp.mw());
-  publicApp.enableCors();
+  publicApp.enableCors({
+    origin: process.env.API_CORS_ORIGINS?.split(',') ?? ['http://localhost:3000'],
+  });
   publicApp.useLogger(publicApp.get(WINSTON_MODULE_NEST_PROVIDER));
   publicApp.disable('etag');
   publicApp.disable('x-powered-by');

@@ -21,6 +21,7 @@ import { QueryPagination } from "src/common/entities/query.pagination";
 import { NftFilter } from "../nfts/entities/nft.filter";
 import { TokenAccount } from "src/common/indexer/entities";
 import { ApiConfigService } from "../../common/api-config/api.config.service";
+import { DrwaTransactionService } from "./drwa.transaction.service";
 import crypto from 'crypto-js';
 
 @Injectable()
@@ -33,6 +34,7 @@ export class TransactionGetService {
     @Inject(forwardRef(() => TokenTransferService))
     private readonly tokenTransferService: TokenTransferService,
     private readonly apiConfigService: ApiConfigService,
+    private readonly drwaTransactionService: DrwaTransactionService,
   ) { }
 
   private async tryGetTransactionFromElasticBySenderAndNonce(sender: string, nonce: number): Promise<TransactionDetailed | undefined> {
@@ -178,6 +180,7 @@ export class TransactionGetService {
 
       this.applyUsernamesToDetailedTransaction(transaction, transactionDetailed);
       await this.applyNftNameOnTransactionOperations([transactionDetailed]);
+      this.drwaTransactionService.applyDrwa(transactionDetailed);
 
       return ApiUtils.mergeObjects(new TransactionDetailed(), transactionDetailed);
     } catch (error) {

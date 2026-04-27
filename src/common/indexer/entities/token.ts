@@ -6,4 +6,11 @@ export interface Token extends Collection {
   balance: string;
   roles: any;
   data?: TokenData;
+  drwa?: {
+    regulated?: boolean;
+    policyId?: string;
+    tokenPolicyVersion?: number;
+    globalPause?: boolean;
+    strictAuditorMode?: boolean;
+  };
 }

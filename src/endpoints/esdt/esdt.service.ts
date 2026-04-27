@@ -17,6 +17,7 @@ import { ElasticIndexerService } from "src/common/indexer/elastic/elastic.indexe
 import { randomUUID } from "crypto";
 import { EsdtSubType } from "./entities/esdt.sub.type";
 import { PluginService } from "../../common/plugins/plugin.service";
+import { TokenDrwa } from "../tokens/entities/token.drwa";
 
 @Injectable()
 export class EsdtService {
@@ -231,6 +232,7 @@ export class EsdtService {
       NFTCreateStopped: elasticProperties.properties?.NFTCreateStopped ?? false,
       isPaused: elasticProperties.paused ?? false,
       timestamp: elasticProperties.timestamp,
+      drwa: elasticProperties.drwa ? new TokenDrwa(elasticProperties.drwa) : undefined,
     });
 
     if (elasticProperties.type === 'FungibleESDT') {

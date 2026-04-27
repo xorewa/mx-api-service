@@ -796,6 +796,7 @@ export class TokenService {
         canAddSpecialRoles: collection.canAddSpecialRoles,
         canChangeOwner: collection.canChangeOwner,
         canUpgrade: collection.canUpgrade,
+        drwa: (collection as any).drwa,
       }));
     }
 

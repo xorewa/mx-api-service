@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import '@multiversx/sdk-nestjs-common/lib/utils/extensions/array.extensions';
 import '@multiversx/sdk-nestjs-common/lib/utils/extensions/date.extensions';
 import '@multiversx/sdk-nestjs-common/lib/utils/extensions/number.extensions';
@@ -16,6 +18,7 @@ import { LocalCacheController } from './endpoints/caching/local.cache.controller
     EndpointsServicesModule,
     EndpointsControllersModule.forRoot(),
     DynamicModuleUtils.getRedisCacheModule(),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
   ],
   controllers: [
     LocalCacheController,
@@ -23,6 +26,10 @@ import { LocalCacheController } from './endpoints/caching/local.cache.controller
   providers: [
     DynamicModuleUtils.getNestJsApiConfigService(),
     GuestCacheService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
   exports: [
     EndpointsServicesModule,
