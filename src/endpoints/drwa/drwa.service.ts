@@ -116,7 +116,21 @@ export class DrwaService {
   async getDrwaAsset(identifier: string): Promise<DrwaAssetRecord | undefined> {
     const gatewayAsset = await this.getAssetRecordFromGateway(identifier);
     if (gatewayAsset) {
-      return gatewayAsset;
+      if (gatewayAsset.policyId !== undefined && gatewayAsset.regulated !== undefined) {
+        return gatewayAsset;
+      }
+
+      const policy = await this.getDrwaTokenPolicy(identifier);
+      if (!policy) {
+        return gatewayAsset;
+      }
+
+      return new DrwaAssetRecord({
+        ...gatewayAsset,
+        policyId: gatewayAsset.policyId ?? policy.policyId,
+        regulated: gatewayAsset.regulated ?? policy.regulated,
+        windDownInitiated: gatewayAsset.windDownInitiated ?? policy.windDownInitiated ?? false,
+      });
     }
 
     const policy = await this.getDrwaTokenPolicy(identifier);
@@ -435,6 +449,16 @@ export class DrwaService {
     }
 
     const decoded = this.decodeHolderMirrorBody(stored.body);
+    // ISSUE-042 follow-up: decodeHolderMirrorBody returns {} for both an
+    // empty stored body AND a malformed binary body. Either case means
+    // "no usable compliance data on the gateway path" — synthesizing a
+    // DrwaHolderCompliance object with mostly-undefined fields would make
+    // this function return truthy and short-circuit the indexed-state
+    // fallback in getDrwaHolderCompliance (line 78). Return undefined so
+    // the caller cascades to indexed state.
+    if (this.isEmptyHolderMirrorDecode(decoded)) {
+      return undefined;
+    }
     const auditorAuthorized = await this.getHolderAuditorAuthorizationFromGateway(address, tokenId);
     return new DrwaHolderCompliance({
       tokenId,
@@ -451,6 +475,21 @@ export class DrwaService {
       shardId: undefined,
       eventOrder: undefined,
     });
+  }
+
+  // ISSUE-042 follow-up: a holder-mirror decode is "empty" when none of
+  // the substantive compliance fields parsed out. holderPolicyVersion is
+  // intentionally NOT in this check because it has a fallback to
+  // stored.version above; an entry with only a version stored is still
+  // not real compliance data and should fall back to the indexed path.
+  private isEmptyHolderMirrorDecode(decoded: Partial<DrwaHolderCompliance>): boolean {
+    return decoded.kycStatus === undefined
+      && decoded.amlStatus === undefined
+      && decoded.investorClass === undefined
+      && decoded.jurisdictionCode === undefined
+      && decoded.expiryRound === undefined
+      && decoded.transferLocked === undefined
+      && decoded.receiveLocked === undefined;
   }
 
   private async getHolderAuditorAuthorizationFromGateway(address: string, tokenId: string): Promise<boolean | undefined> {
@@ -614,56 +653,96 @@ export class DrwaService {
     }
 
     if (body[0] === 123) {
-      const parsed = JSON.parse(body.toString('utf8'));
-      return {
-        holderPolicyVersion: parsed.holder_policy_version ?? parsed.holderPolicyVersion,
-        kycStatus: parsed.kyc_status ?? parsed.kycStatus,
-        amlStatus: parsed.aml_status ?? parsed.amlStatus,
-        investorClass: parsed.investor_class ?? parsed.investorClass,
-        jurisdictionCode: parsed.jurisdiction_code ?? parsed.jurisdictionCode,
-        expiryRound: parsed.expiry_round ?? parsed.expiryRound,
-        transferLocked: parsed.transfer_locked ?? parsed.transferLocked,
-        receiveLocked: parsed.receive_locked ?? parsed.receiveLocked,
-        auditorAuthorized: parsed.auditor_authorized ?? parsed.auditorAuthorized,
-      };
+      // ISSUE-042 follow-up (cgpt validation): wrap JSON.parse in try/catch.
+      // The previous fix already handled malformed BINARY bodies (returned {}
+      // and the gateway path falls back to indexed state), but a body that
+      // STARTS with `{` enters this JSON branch and JSON.parse throws on
+      // syntactically broken input. The exception escaped upstream and broke
+      // the gateway request path instead of cascading to indexed fallback.
+      // Treat malformed JSON the same way: return {} so the caller cascades.
+      try {
+        const parsed = JSON.parse(body.toString('utf8'));
+        return {
+          holderPolicyVersion: parsed.holder_policy_version ?? parsed.holderPolicyVersion,
+          kycStatus: parsed.kyc_status ?? parsed.kycStatus,
+          amlStatus: parsed.aml_status ?? parsed.amlStatus,
+          investorClass: parsed.investor_class ?? parsed.investorClass,
+          jurisdictionCode: parsed.jurisdiction_code ?? parsed.jurisdictionCode,
+          expiryRound: parsed.expiry_round ?? parsed.expiryRound,
+          transferLocked: parsed.transfer_locked ?? parsed.transferLocked,
+          receiveLocked: parsed.receive_locked ?? parsed.receiveLocked,
+          auditorAuthorized: parsed.auditor_authorized ?? parsed.auditorAuthorized,
+        };
+      } catch {
+        return {};
+      }
     }
 
-    let offset = 0;
-    const holderPolicyVersion = Number(body.readBigUInt64BE(offset));
-    offset += 8;
+    // ISSUE-042: the binary branch previously trusted the body length —
+    // Node's Buffer.read* methods throw RangeError on out-of-bounds
+    // fixed-width reads, but `body[offset]` for the 3 boolean bytes
+    // returns `undefined` on a short buffer and the `=== 1` comparison
+    // silently produces `false`. A truncated mirror value would either
+    // 500 the API (RangeError escaping) or return wrong-but-plausible
+    // compliance flags. Both are bad for a compliance surface.
+    //
+    // The fix: validate remaining bytes before every read, and wrap the
+    // whole binary decode in a try/catch that degrades to `{}` on any
+    // malformed input — same shape the function already returns for the
+    // empty-body case at the top. The DRWA endpoint can then surface a
+    // controlled "no compliance data" instead of a runtime exception.
+    try {
+      let offset = 0;
+      const requireRemaining = (n: number): void => {
+        if (offset + n > body.length) {
+          throw new Error('invalid DRWA holder mirror body');
+        }
+      };
 
-    const readField = (): string => {
-      const length = body.readUInt32BE(offset);
-      offset += 4;
-      const value = body.subarray(offset, offset + length).toString('utf8');
-      offset += length;
-      return value;
-    };
+      requireRemaining(8);
+      const holderPolicyVersion = Number(body.readBigUInt64BE(offset));
+      offset += 8;
 
-    const kycStatus = readField();
-    const amlStatus = readField();
-    const investorClass = readField();
-    const jurisdictionCode = readField();
-    const expiryRound = Number(body.readBigUInt64BE(offset));
-    offset += 8;
+      const readField = (): string => {
+        requireRemaining(4);
+        const length = body.readUInt32BE(offset);
+        offset += 4;
+        requireRemaining(length);
+        const value = body.subarray(offset, offset + length).toString('utf8');
+        offset += length;
+        return value;
+      };
 
-    const transferLocked = body[offset] === 1;
-    offset += 1;
-    const receiveLocked = body[offset] === 1;
-    offset += 1;
-    const auditorAuthorized = body[offset] === 1;
+      const kycStatus = readField();
+      const amlStatus = readField();
+      const investorClass = readField();
+      const jurisdictionCode = readField();
 
-    return {
-      holderPolicyVersion,
-      kycStatus,
-      amlStatus,
-      investorClass,
-      jurisdictionCode,
-      expiryRound,
-      transferLocked,
-      receiveLocked,
-      auditorAuthorized,
-    };
+      requireRemaining(8);
+      const expiryRound = Number(body.readBigUInt64BE(offset));
+      offset += 8;
+
+      requireRemaining(3); // three trailing boolean bytes
+      const transferLocked = body[offset] === 1;
+      offset += 1;
+      const receiveLocked = body[offset] === 1;
+      offset += 1;
+      const auditorAuthorized = body[offset] === 1;
+
+      return {
+        holderPolicyVersion,
+        kycStatus,
+        amlStatus,
+        investorClass,
+        jurisdictionCode,
+        expiryRound,
+        transferLocked,
+        receiveLocked,
+        auditorAuthorized,
+      };
+    } catch {
+      return {};
+    }
   }
 
   private decodeHolderAuditorAuthorizationBody(body: Buffer): boolean | undefined {
@@ -672,7 +751,10 @@ export class DrwaService {
     }
 
     if (body[0] === 123) {
-      const parsed = JSON.parse(body.toString('utf8'));
+      const parsed = this.tryParseJsonBody(body);
+      if (!parsed) {
+        return undefined;
+      }
       return parsed.auditor_authorized ?? parsed.auditorAuthorized;
     }
 
@@ -693,7 +775,11 @@ export class DrwaService {
       return undefined;
     }
 
-    const parsed = JSON.parse(body.toString('utf8'));
+    const parsed = this.tryParseJsonBody(body);
+    if (!parsed) {
+      return undefined;
+    }
+
     return {
       drwaEnabled: parsed.drwa_enabled ?? parsed.drwaEnabled,
       globalPause: parsed.global_pause ?? parsed.globalPause,
@@ -714,8 +800,13 @@ export class DrwaService {
       return undefined;
     }
 
-    if (body[0] === 123) {
-      const parsed = JSON.parse(body.toString('utf8'));
+    if (body[0] === 123 || body[0] === 1) {
+      const payload = body[0] === 1 ? body.subarray(1) : body;
+      const parsed = this.tryParseJsonBody(payload);
+      if (!parsed) {
+        return undefined;
+      }
+
       return {
         tokenId,
         policyId: parsed.policy_id ?? parsed.policyId,
@@ -738,6 +829,19 @@ export class DrwaService {
     }
 
     return undefined;
+  }
+
+  private tryParseJsonBody(body: Buffer): Record<string, any> | undefined {
+    try {
+      const parsed = JSON.parse(body.toString('utf8'));
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return undefined;
+      }
+
+      return parsed;
+    } catch {
+      return undefined;
+    }
   }
 
   private parseStringCollection(value: unknown): string[] {

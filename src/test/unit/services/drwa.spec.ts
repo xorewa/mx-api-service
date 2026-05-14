@@ -403,6 +403,118 @@ describe('Drwa Service', () => {
     expect(result?.windDownInitiated).toBe(false);
   });
 
+  it('should decode discriminator-prefixed asset wind-down record from gateway storage', async () => {
+    const stored = Buffer.from(JSON.stringify({
+      version: 5,
+      body: Buffer.concat([
+        Buffer.from([1]),
+        Buffer.from(JSON.stringify({
+          wind_down_initiated: true,
+          wind_down_round: 77,
+          registered_round: 55,
+        })),
+      ]).toString('base64'),
+    })).toString('base64');
+
+    jest.spyOn(gatewayService, 'get')
+      .mockResolvedValueOnce({ value: stored } as any)
+      .mockResolvedValueOnce(undefined as any);
+    jest.spyOn(apiService, 'post')
+      .mockResolvedValueOnce({
+        data: {
+          hits: {
+            hits: [{
+              _source: {
+                drwa: {
+                  regulated: true,
+                  policyId: 'policy-9',
+                  windDownInitiated: false,
+                },
+              },
+            }],
+          },
+        },
+      } as any)
+      .mockResolvedValueOnce({ data: { hits: { hits: [] } } } as any);
+
+    const result = await service.getDrwaAsset('HOTEL-1234');
+
+    expect(result?.identifier).toBe('HOTEL-1234');
+    expect(result?.policyId).toBe('policy-9');
+    expect(result?.windDownInitiated).toBe(true);
+    expect(result?.windDownRound).toBe(77);
+    expect(result?.registeredRound).toBe(55);
+  });
+
+  it('should fall back to indexed asset record when gateway asset JSON is malformed', async () => {
+    const stored = Buffer.from(JSON.stringify({
+      version: 5,
+      body: Buffer.concat([
+        Buffer.from([1]),
+        Buffer.from('{"wind_down_initiated":'),
+      ]).toString('base64'),
+    })).toString('base64');
+
+    jest.spyOn(gatewayService, 'get')
+      .mockResolvedValueOnce({ value: stored } as any)
+      .mockResolvedValueOnce(undefined as any);
+    jest.spyOn(apiService, 'post')
+      .mockResolvedValueOnce({
+        data: {
+          hits: {
+            hits: [{
+              _source: {
+                drwa: {
+                  regulated: true,
+                  policyId: 'indexed-policy',
+                  windDownInitiated: false,
+                },
+              },
+            }],
+          },
+        },
+      } as any)
+      .mockResolvedValueOnce({ data: { hits: { hits: [] } } } as any)
+      .mockResolvedValueOnce({ data: { hits: { hits: [] } } } as any);
+
+    const result = await service.getDrwaAsset('HOTEL-1234');
+
+    expect(result?.policyId).toBe('indexed-policy');
+    expect(result?.windDownInitiated).toBe(false);
+  });
+
+  it('should fall back to indexed token policy when gateway policy JSON is malformed', async () => {
+    const stored = Buffer.from(JSON.stringify({
+      version: 7,
+      body: Buffer.from('{"drwa_enabled":').toString('base64'),
+    })).toString('base64');
+
+    jest.spyOn(gatewayService, 'get').mockResolvedValueOnce({ value: stored } as any);
+    jest.spyOn(apiService, 'post')
+      .mockResolvedValueOnce({
+        data: {
+          hits: {
+            hits: [{
+              _source: {
+                drwa: {
+                  regulated: true,
+                  policyId: 'indexed-policy',
+                  drwaEnabled: true,
+                  globalPause: false,
+                },
+              },
+            }],
+          },
+        },
+      } as any)
+      .mockResolvedValueOnce({ data: { hits: { hits: [] } } } as any);
+
+    const result = await service.getDrwaTokenPolicy('HOTEL-1234');
+
+    expect(result?.policyId).toBe('indexed-policy');
+    expect(result?.drwaEnabled).toBe(true);
+  });
+
   it('should return identity history from the dedicated identity index', async () => {
     jest.spyOn(apiService, 'post').mockResolvedValue({
       data: {
