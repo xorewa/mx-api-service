@@ -95,7 +95,7 @@ describeIfElastic("DRWA API (real elastic)", () => {
         {
           provide: GatewayService,
           useValue: {
-            get: async () => undefined,
+            get: () => Promise.resolve(undefined),
           },
         },
       ],

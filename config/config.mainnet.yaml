@@ -40,8 +40,8 @@ features:
     enabled: false
   transactionPoolWarmer:
     enabled: false
-    cronExpression: '*/5 * * * * *'
-    ttlInSeconds: 60 
+    cronExpression: '*/1 * * * * *'
+    ttlInSeconds: 10
   updateCollectionExtraDetails:
     enabled: false
   updateAccountExtraDetails:
@@ -220,3 +220,8 @@ customUrlHeaders:
   - urlPattern: ''
     headers:
       x-custom-auth: ''
+restrictedRoutes:
+  enabled: true
+  routes:
+    - '/package.json'
+    - '/docs/package.json'

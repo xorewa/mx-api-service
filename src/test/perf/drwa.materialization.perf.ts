@@ -29,7 +29,7 @@ const service = new DrwaTransactionService();
 const tokenService = new TokenService(
   {} as any,
   {
-    getCollection: async () => undefined,
+    getCollection: () => Promise.resolve(undefined),
   } as any,
   {} as any,
   {} as any,
@@ -103,11 +103,11 @@ const drwaToken: any = {
   }
 };
 
-(tokenService as any).getAllTokens = async () => [drwaToken];
-(tokenService as any).applySupply = async () => undefined;
-(tokenService as any).getTokenRoles = async () => [];
+(tokenService as any).getAllTokens = () => Promise.resolve([drwaToken]);
+(tokenService as any).applySupply = () => Promise.resolve(undefined);
+(tokenService as any).getTokenRoles = () => Promise.resolve([]);
 
-(async () => {
+void (async () => {
   await benchmarkAsync('api_getToken_drwa', 20000, async () => {
     const result = await (tokenService as any).getToken('RWA-123456');
     if (!result?.drwa?.regulated) {

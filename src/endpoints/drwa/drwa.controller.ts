@@ -53,7 +53,7 @@ export class DrwaController {
   @ApiOperation({ summary: 'DRWA token policy compatibility route', description: 'Returns the canonical DRWA token policy for platform clients' })
   @ApiOkResponse({ type: DrwaTokenPolicy })
   @ApiNotFoundResponse({ description: 'Token not found or not DRWA regulated' })
-  async getDrwaTokenPolicyCompat(
+  getDrwaTokenPolicyCompat(
     @Param('identifier', ParseTokenPipe) identifier: string,
   ): Promise<DrwaTokenPolicy> {
     return this.getDrwaTokenPolicy(identifier);

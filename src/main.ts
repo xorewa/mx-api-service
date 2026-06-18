@@ -39,6 +39,7 @@ import compression from 'compression';
 import helmet from 'helmet';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { WebsocketSubscriptionModule } from './crons/websocket/websocket.subscription.module';
+import { RestrictedRoutesMiddleware } from './utils/restricted.routes.middleware';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrapper');
@@ -89,7 +90,6 @@ async function bootstrap() {
     const processorApp = await NestFactory.create(TransactionProcessorModule);
     await processorApp.listen(5001);
   }
-
 
   if (apiConfigService.getIsWebsocketSubscriptionActive()) {
     const websocketSubscriptionApp = await NestFactory.create(WebsocketSubscriptionModule);
@@ -187,9 +187,16 @@ async function bootstrap() {
   logger.log(`Guest caching enabled: ${apiConfigService.isGuestCacheFeatureActive()}`);
   logger.log(`Transaction pool enabled: ${apiConfigService.isTransactionPoolEnabled()}`);
   logger.log(`Transaction pool cache warmer enabled: ${apiConfigService.isTransactionPoolCacheWarmerEnabled()}`);
+
+  logger.log(`Restricted routes enabled: ${apiConfigService.isRestrictedRoutesEnabled()}`);
 }
 
 async function configurePublicApp(publicApp: NestExpressApplication, apiConfigService: ApiConfigService) {
+  if (apiConfigService.isRestrictedRoutesEnabled()) {
+    const restrictedRoutesMiddleware = publicApp.get(RestrictedRoutesMiddleware);
+    publicApp.use(restrictedRoutesMiddleware.use.bind(restrictedRoutesMiddleware));
+  }
+
   if (apiConfigService.getCompressionEnabled()) {
     publicApp.use(compression({
       filter: (req: any, res: any) => {
