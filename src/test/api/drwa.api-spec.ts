@@ -108,7 +108,6 @@ describeIfElastic("DRWA API (real elastic)", () => {
       identifier: tokenId,
       drwa: {
         regulated: true,
-        policyId: "policy-1",
         tokenPolicyVersion: 2,
         globalPause: false,
         strictAuditorMode: true,
@@ -118,7 +117,6 @@ describeIfElastic("DRWA API (real elastic)", () => {
     await putDocument("drwa-token-policies", policyDocId, {
       tokenId,
       eventType: "drwaTokenPolicy",
-      policyId: "policy-1",
       regulated: true,
       globalPause: false,
       strictAuditorMode: true,
@@ -165,7 +163,7 @@ describeIfElastic("DRWA API (real elastic)", () => {
       .expect(200)
       .expect((response) => {
         expect(response.body.regulated).toBe(true);
-        expect(response.body.policyId).toBe("policy-1");
+        expect(response.body.tokenId).toBe(tokenId);
         expect(response.body.tokenPolicyVersion).toBe(2);
         expect(response.body.history).toHaveLength(1);
         expect(response.body.history[0].eventType).toBe("drwaTokenPolicy");

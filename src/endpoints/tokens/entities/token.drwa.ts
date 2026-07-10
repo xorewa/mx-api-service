@@ -8,9 +8,6 @@ export class TokenDrwa {
   @ApiProperty({ type: Boolean, nullable: true })
   regulated: boolean | undefined = undefined;
 
-  @ApiProperty({ type: String, nullable: true })
-  policyId: string | undefined = undefined;
-
   @ApiProperty({ type: Number, nullable: true })
   tokenPolicyVersion: number | undefined = undefined;
 

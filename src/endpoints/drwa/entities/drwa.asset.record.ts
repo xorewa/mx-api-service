@@ -17,9 +17,6 @@ export class DrwaAssetRecord {
   @ApiProperty({ type: String, nullable: true })
   assetClass: string | undefined = undefined;
 
-  @ApiProperty({ type: String, nullable: true })
-  policyId: string | undefined = undefined;
-
   @ApiProperty({ type: Boolean, nullable: true })
   regulated: boolean | undefined = undefined;
 

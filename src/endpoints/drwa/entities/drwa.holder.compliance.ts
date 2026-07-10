@@ -39,6 +39,24 @@ export class DrwaHolderCompliance {
   expiryRound: number | undefined = undefined;
 
   @ApiProperty({ type: Number, nullable: true })
+  lockUntilRound: number | undefined = undefined;
+
+  @ApiProperty({ type: Boolean, nullable: true })
+  travelRuleAttested: boolean | undefined = undefined;
+
+  @ApiProperty({ type: Boolean, nullable: true })
+  sanctionsCleared: boolean | undefined = undefined;
+
+  @ApiProperty({ type: String, nullable: true })
+  sanctionsScreeningCid: string | undefined = undefined;
+
+  @ApiProperty({ type: String, nullable: true })
+  uboParentEntity: string | undefined = undefined;
+
+  @ApiProperty({ type: Number, nullable: true })
+  ownershipPct: number | undefined = undefined;
+
+  @ApiProperty({ type: Number, nullable: true })
   shardId: number | undefined = undefined;
 
   @ApiProperty({ type: String, nullable: true })

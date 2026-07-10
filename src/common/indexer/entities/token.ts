@@ -8,7 +8,6 @@ export interface Token extends Collection {
   data?: TokenData;
   drwa?: {
     regulated?: boolean;
-    policyId?: string;
     tokenPolicyVersion?: number;
     globalPause?: boolean;
     strictAuditorMode?: boolean;

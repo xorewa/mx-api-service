@@ -97,7 +97,6 @@ const drwaToken: any = {
   },
   drwa: {
     regulated: true,
-    policyId: 'policy-1',
     tokenPolicyVersion: 9,
     globalPause: false
   }

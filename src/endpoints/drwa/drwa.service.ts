@@ -5,7 +5,10 @@ import { ApiConfigService } from 'src/common/api-config/api.config.service';
 import { QueryPagination } from 'src/common/entities/query.pagination';
 import { GatewayService } from 'src/common/gateway/gateway.service';
 import { GatewayComponentRequest } from 'src/common/gateway/entities/gateway.component.request';
-import { DrwaTokenPolicy, DrwaTokenPolicyHistoryEntry } from './entities/drwa.token.policy';
+import {
+  DrwaTokenPolicy,
+  DrwaTokenPolicyHistoryEntry,
+} from './entities/drwa.token.policy';
 import { DrwaHolderCompliance } from './entities/drwa.holder.compliance';
 import { DrwaDenial } from './entities/drwa.denial';
 import { DrwaAttestation } from './entities/drwa.attestation';
@@ -15,21 +18,25 @@ import { DrwaIdentityRecord } from './entities/drwa.identity.record';
 
 @Injectable()
 export class DrwaService {
-  private readonly systemAccountAddress = 'erd1lllllllllllllllllllllllllllllllllllllllllllllllllllsckry7t';
+  private readonly systemAccountAddress =
+    'erd1lllllllllllllllllllllllllllllllllllllllllllllllllllsckry7t';
   private readonly tokensIndex = 'tokens';
   private readonly identitiesIndex = 'drwa-identities';
   private readonly holderComplianceIndex = 'drwa-holder-compliance';
   private readonly denialsIndex = 'drwa-denials';
   private readonly attestationsIndex = 'drwa-attestations';
   private readonly tokenPoliciesIndex = 'drwa-token-policies';
+  private readonly listDrwaAssetsPageSize = 1000;
 
   constructor(
     private readonly apiConfigService: ApiConfigService,
     private readonly apiService: ApiService,
     private readonly gatewayService: GatewayService,
-  ) { }
+  ) {}
 
-  async getDrwaTokenPolicy(identifier: string): Promise<DrwaTokenPolicy | undefined> {
+  async getDrwaTokenPolicy(
+    identifier: string,
+  ): Promise<DrwaTokenPolicy | undefined> {
     const gatewayPolicy = await this.getTokenPolicyFromGateway(identifier);
     if (gatewayPolicy) {
       gatewayPolicy.history = await this.getDrwaTokenPolicyHistory(identifier);
@@ -41,9 +48,7 @@ export class DrwaService {
       size: 1,
       query: {
         bool: {
-          filter: [
-            this.buildExactFieldFilter('identifier', identifier),
-          ],
+          filter: [this.buildExactFieldFilter('identifier', identifier)],
         },
       },
     };
@@ -64,7 +69,6 @@ export class DrwaService {
       identifier,
       drwaEnabled: drwa.regulated,
       regulated: drwa.regulated,
-      policyId: drwa.policyId,
       tokenPolicyVersion: drwa.tokenPolicyVersion,
       globalPause: drwa.globalPause,
       strictAuditorMode: drwa.strictAuditorMode,
@@ -72,20 +76,33 @@ export class DrwaService {
     });
   }
 
-  async getDrwaHolderCompliance(address: string, tokenId?: string): Promise<DrwaHolderCompliance | undefined> {
+  async getDrwaHolderCompliance(
+    address: string,
+    tokenId?: string,
+  ): Promise<DrwaHolderCompliance | undefined> {
     if (tokenId) {
-      const mirrorState = await this.getHolderComplianceFromGateway(address, tokenId);
+      const mirrorState = await this.getHolderComplianceFromGateway(
+        address,
+        tokenId,
+      );
       if (mirrorState) {
         if (mirrorState.auditorAuthorized === undefined) {
-          mirrorState.auditorAuthorized = await this.getLatestIndexedAuditorAuthorization(address, tokenId);
+          mirrorState.auditorAuthorized =
+            await this.getLatestIndexedAuditorAuthorization(address, tokenId);
         }
         return mirrorState;
       }
     }
 
-    const indexedState = await this.getIndexedHolderCompliance(address, tokenId);
+    const indexedState = await this.getIndexedHolderCompliance(
+      address,
+      tokenId,
+    );
     if (indexedState?.holder && indexedState.tokenId) {
-      const auditorAuthorized = await this.getLatestIndexedAuditorAuthorization(indexedState.holder, indexedState.tokenId);
+      const auditorAuthorized = await this.getLatestIndexedAuditorAuthorization(
+        indexedState.holder,
+        indexedState.tokenId,
+      );
       if (auditorAuthorized !== undefined) {
         indexedState.auditorAuthorized = auditorAuthorized;
       }
@@ -110,13 +127,15 @@ export class DrwaService {
 
     const { data } = await this.apiService.post(url, body);
     const hits = data?.hits?.hits ?? [];
-    return hits.map((hit: any) => this.mapIdentityRecord({ _id: hit._id, ...hit._source }));
+    return hits.map((hit: any) =>
+      this.mapIdentityRecord({ _id: hit._id, ...hit._source }),
+    );
   }
 
   async getDrwaAsset(identifier: string): Promise<DrwaAssetRecord | undefined> {
     const gatewayAsset = await this.getAssetRecordFromGateway(identifier);
     if (gatewayAsset) {
-      if (gatewayAsset.policyId !== undefined && gatewayAsset.regulated !== undefined) {
+      if (gatewayAsset.regulated !== undefined) {
         return gatewayAsset;
       }
 
@@ -127,9 +146,9 @@ export class DrwaService {
 
       return new DrwaAssetRecord({
         ...gatewayAsset,
-        policyId: gatewayAsset.policyId ?? policy.policyId,
         regulated: gatewayAsset.regulated ?? policy.regulated,
-        windDownInitiated: gatewayAsset.windDownInitiated ?? policy.windDownInitiated ?? false,
+        windDownInitiated:
+          gatewayAsset.windDownInitiated ?? policy.windDownInitiated ?? false,
       });
     }
 
@@ -141,7 +160,6 @@ export class DrwaService {
     return new DrwaAssetRecord({
       tokenId: identifier,
       identifier,
-      policyId: policy.policyId,
       regulated: policy.regulated,
       windDownInitiated: policy.windDownInitiated ?? false,
     });
@@ -149,52 +167,80 @@ export class DrwaService {
 
   async listDrwaAssets(): Promise<DrwaAssetRecord[]> {
     const url = `${this.apiConfigService.getElasticUrl()}/${this.tokensIndex}/_search`;
-    const body = {
-      size: 1000,
-      sort: [{ identifier: { order: 'asc' } }],
-      query: {
-        bool: {
-          filter: [
-            { term: { 'drwa.regulated': true } },
-          ],
+    const records: DrwaAssetRecord[] = [];
+    let searchAfter: any[] | undefined;
+
+    do {
+      const body: any = {
+        size: this.listDrwaAssetsPageSize,
+        sort: [{ identifier: { order: 'asc' } }],
+        query: {
+          bool: {
+            filter: [{ term: { 'drwa.regulated': true } }],
+          },
         },
-      },
-      _source: ['identifier', 'drwa'],
-    };
-
-    const { data } = await this.apiService.post(url, body);
-    const hits = data?.hits?.hits ?? [];
-    const records = await Promise.all(hits.map(async (hit: any) => {
-      const identifier = hit?._source?.identifier;
-      if (!identifier) {
-        return undefined;
+        _source: ['identifier', 'drwa'],
+      };
+      if (searchAfter !== undefined) {
+        body.search_after = searchAfter;
       }
 
-      const gatewayAsset = await this.getAssetRecordFromGateway(identifier);
-      if (gatewayAsset) {
-        return gatewayAsset;
-      }
+      const { data } = await this.apiService.post(url, body);
+      const hits = data?.hits?.hits ?? [];
+      const pageRecords = await Promise.all(
+        hits.map(async (hit: any) => {
+          const identifier = hit?._source?.identifier;
+          if (!identifier) {
+            return undefined;
+          }
 
-      return new DrwaAssetRecord({
-        tokenId: identifier,
-        identifier,
-        policyId: hit?._source?.drwa?.policyId,
-        regulated: hit?._source?.drwa?.regulated === true,
-        windDownInitiated: hit?._source?.drwa?.windDownInitiated === true,
-      });
-    }));
+          const gatewayAsset = await this.getAssetRecordFromGateway(identifier);
+          if (gatewayAsset) {
+            return gatewayAsset;
+          }
 
-    return records.filter((record): record is DrwaAssetRecord => Boolean(record));
+          return new DrwaAssetRecord({
+            tokenId: identifier,
+            identifier,
+            regulated: hit?._source?.drwa?.regulated === true,
+            windDownInitiated: hit?._source?.drwa?.windDownInitiated === true,
+          });
+        }),
+      );
+      records.push(
+        ...pageRecords.filter((record): record is DrwaAssetRecord =>
+          Boolean(record),
+        ),
+      );
+
+      searchAfter =
+        hits.length === this.listDrwaAssetsPageSize
+          ? hits[hits.length - 1]?.sort
+          : undefined;
+    } while (searchAfter !== undefined);
+
+    return records;
   }
 
-  async getDrwaDenials(filter: DrwaDenialFilter, pagination: QueryPagination): Promise<DrwaDenial[]> {
+  async getDrwaDenials(
+    filter: DrwaDenialFilter,
+    pagination: QueryPagination,
+  ): Promise<DrwaDenial[]> {
     const url = `${this.apiConfigService.getElasticUrl()}/${this.denialsIndex}/_search`;
-    const { data } = await this.apiService.post(url, this.buildDenialsSearchBody(filter, pagination));
+    const { data } = await this.apiService.post(
+      url,
+      this.buildDenialsSearchBody(filter, pagination),
+    );
     const hits = data?.hits?.hits ?? [];
-    return hits.map((hit: any) => this.mapDenial({ _id: hit._id, ...hit._source }));
+    return hits.map((hit: any) =>
+      this.mapDenial({ _id: hit._id, ...hit._source }),
+    );
   }
 
-  async getDrwaAttestations(tokenId: string, pagination: QueryPagination): Promise<DrwaAttestation[]> {
+  async getDrwaAttestations(
+    tokenId: string,
+    pagination: QueryPagination,
+  ): Promise<DrwaAttestation[]> {
     const url = `${this.apiConfigService.getElasticUrl()}/${this.attestationsIndex}/_search`;
     const body = {
       from: pagination.from,
@@ -212,10 +258,14 @@ export class DrwaService {
 
     const { data } = await this.apiService.post(url, body);
     const hits = data?.hits?.hits ?? [];
-    return hits.map((hit: any) => this.mapAttestation({ _id: hit._id, ...hit._source }));
+    return hits.map((hit: any) =>
+      this.mapAttestation({ _id: hit._id, ...hit._source }),
+    );
   }
 
-  private async getDrwaTokenPolicyHistory(identifier: string): Promise<DrwaTokenPolicyHistoryEntry[]> {
+  private async getDrwaTokenPolicyHistory(
+    identifier: string,
+  ): Promise<DrwaTokenPolicyHistoryEntry[]> {
     const url = `${this.apiConfigService.getElasticUrl()}/${this.tokenPoliciesIndex}/_search`;
     const body = {
       size: 100,
@@ -235,30 +285,38 @@ export class DrwaService {
 
     const { data } = await this.apiService.post(url, body);
     const hits = data?.hits?.hits ?? [];
-    return hits.map((hit: any) => new DrwaTokenPolicyHistoryEntry({
-      tokenId: identifier,
-      identifier,
-      eventType: hit._source?.eventType,
-      action: hit._source?.eventType,
-      policyId: hit._source?.policyId,
-      regulated: hit._source?.regulated,
-      globalPause: hit._source?.globalPause,
-      strictAuditorMode: hit._source?.strictAuditorMode,
-      whitePaperCid: hit._source?.whitePaperCid,
-      registrationStatus: hit._source?.registrationStatus,
-      windDownInitiated: hit._source?.windDownInitiated,
-      tokenPolicyVersion: hit._source?.tokenPolicyVersion,
-      blockHash: hit._source?.blockHash,
-      blockRound: hit._source?.blockRound,
-      isFinalized: hit._source?.isFinalized,
-      shardId: hit._source?.shardID ?? hit._source?.shardId,
-      eventOrder: hit._source?.eventOrder,
-      timestamp: hit._source?.timestamp,
-    }));
+    return hits.map(
+      (hit: any) =>
+        new DrwaTokenPolicyHistoryEntry({
+          tokenId: identifier,
+          identifier,
+          eventType: hit._source?.eventType,
+          action: hit._source?.eventType,
+          regulated: hit._source?.regulated,
+          globalPause: hit._source?.globalPause,
+          strictAuditorMode: hit._source?.strictAuditorMode,
+          whitePaperCid: hit._source?.whitePaperCid,
+          registrationStatus: hit._source?.registrationStatus,
+          windDownInitiated: hit._source?.windDownInitiated,
+          tokenPolicyVersion: hit._source?.tokenPolicyVersion,
+          blockHash: hit._source?.blockHash,
+          blockRound: hit._source?.blockRound,
+          isFinalized: hit._source?.isFinalized,
+          shardId: hit._source?.shardID ?? hit._source?.shardId,
+          eventOrder: hit._source?.eventOrder,
+          timestamp: hit._source?.timestamp,
+        }),
+    );
   }
 
-  private async getIndexedHolderCompliance(address: string, tokenId?: string): Promise<DrwaHolderCompliance | undefined> {
-    const filters = [this.buildExactFieldFilter('holder', address), this.buildFinalizedFilter()];
+  private async getIndexedHolderCompliance(
+    address: string,
+    tokenId?: string,
+  ): Promise<DrwaHolderCompliance | undefined> {
+    const filters = [
+      this.buildExactFieldFilter('holder', address),
+      this.buildFinalizedFilter(),
+    ];
     if (tokenId) {
       filters.push(this.buildExactFieldFilter('tokenId', tokenId));
     }
@@ -301,7 +359,10 @@ export class DrwaService {
     });
   }
 
-  private async getLatestIndexedAuditorAuthorization(address: string, tokenId: string): Promise<boolean | undefined> {
+  private async getLatestIndexedAuditorAuthorization(
+    address: string,
+    tokenId: string,
+  ): Promise<boolean | undefined> {
     const url = `${this.apiConfigService.getElasticUrl()}/${this.attestationsIndex}/_search`;
     const body = {
       size: 1,
@@ -331,7 +392,10 @@ export class DrwaService {
     return typeof approved === 'boolean' ? approved : undefined;
   }
 
-  private buildDenialsSearchBody(filter: DrwaDenialFilter, pagination: QueryPagination): any {
+  private buildDenialsSearchBody(
+    filter: DrwaDenialFilter,
+    pagination: QueryPagination,
+  ): any {
     return {
       from: pagination.from,
       size: pagination.size,
@@ -363,7 +427,9 @@ export class DrwaService {
       });
     }
 
-    return filters.length > 0 ? { bool: { filter: filters } } : { match_all: {} };
+    return filters.length > 0
+      ? { bool: { filter: filters } }
+      : { match_all: {} };
   }
 
   private mapDenial(document: any): DrwaDenial {
@@ -429,7 +495,6 @@ export class DrwaService {
         should: [
           { term: { [`${field}.keyword`]: value } },
           { term: { [field]: value } },
-          { match_phrase: { [field]: value } },
         ],
         minimum_should_match: 1,
       },
@@ -442,8 +507,14 @@ export class DrwaService {
     };
   }
 
-  private async getHolderComplianceFromGateway(address: string, tokenId: string): Promise<DrwaHolderCompliance | undefined> {
-    const stored = await this.getStoredGatewayValue(address, this.buildHolderMirrorStorageKey(address, tokenId));
+  private async getHolderComplianceFromGateway(
+    address: string,
+    tokenId: string,
+  ): Promise<DrwaHolderCompliance | undefined> {
+    const stored = await this.getStoredGatewayValue(
+      address,
+      this.buildHolderMirrorStorageKey(address, tokenId),
+    );
     if (!stored) {
       return undefined;
     }
@@ -459,7 +530,8 @@ export class DrwaService {
     if (this.isEmptyHolderMirrorDecode(decoded)) {
       return undefined;
     }
-    const auditorAuthorized = await this.getHolderAuditorAuthorizationFromGateway(address, tokenId);
+    const auditorAuthorized =
+      await this.getHolderAuditorAuthorizationFromGateway(address, tokenId);
     return new DrwaHolderCompliance({
       tokenId,
       holder: address,
@@ -472,6 +544,12 @@ export class DrwaService {
       receiveLocked: decoded.receiveLocked,
       auditorAuthorized,
       expiryRound: decoded.expiryRound,
+      lockUntilRound: decoded.lockUntilRound,
+      travelRuleAttested: decoded.travelRuleAttested,
+      sanctionsCleared: decoded.sanctionsCleared,
+      sanctionsScreeningCid: decoded.sanctionsScreeningCid,
+      uboParentEntity: decoded.uboParentEntity,
+      ownershipPct: decoded.ownershipPct,
       shardId: undefined,
       eventOrder: undefined,
     });
@@ -482,18 +560,34 @@ export class DrwaService {
   // intentionally NOT in this check because it has a fallback to
   // stored.version above; an entry with only a version stored is still
   // not real compliance data and should fall back to the indexed path.
-  private isEmptyHolderMirrorDecode(decoded: Partial<DrwaHolderCompliance>): boolean {
-    return decoded.kycStatus === undefined
-      && decoded.amlStatus === undefined
-      && decoded.investorClass === undefined
-      && decoded.jurisdictionCode === undefined
-      && decoded.expiryRound === undefined
-      && decoded.transferLocked === undefined
-      && decoded.receiveLocked === undefined;
+  private isEmptyHolderMirrorDecode(
+    decoded: Partial<DrwaHolderCompliance>,
+  ): boolean {
+    return (
+      decoded.kycStatus === undefined &&
+      decoded.amlStatus === undefined &&
+      decoded.investorClass === undefined &&
+      decoded.jurisdictionCode === undefined &&
+      decoded.expiryRound === undefined &&
+      decoded.transferLocked === undefined &&
+      decoded.receiveLocked === undefined &&
+      decoded.lockUntilRound === undefined &&
+      decoded.travelRuleAttested === undefined &&
+      decoded.sanctionsCleared === undefined &&
+      decoded.sanctionsScreeningCid === undefined &&
+      decoded.uboParentEntity === undefined &&
+      decoded.ownershipPct === undefined
+    );
   }
 
-  private async getHolderAuditorAuthorizationFromGateway(address: string, tokenId: string): Promise<boolean | undefined> {
-    const stored = await this.getStoredGatewayValue(address, this.buildHolderAuditorAuthorizationStorageKey(address, tokenId));
+  private async getHolderAuditorAuthorizationFromGateway(
+    address: string,
+    tokenId: string,
+  ): Promise<boolean | undefined> {
+    const stored = await this.getStoredGatewayValue(
+      address,
+      this.buildHolderAuditorAuthorizationStorageKey(address, tokenId),
+    );
     if (!stored) {
       return undefined;
     }
@@ -501,8 +595,13 @@ export class DrwaService {
     return this.decodeHolderAuditorAuthorizationBody(stored.body);
   }
 
-  private async getTokenPolicyFromGateway(identifier: string): Promise<DrwaTokenPolicy | undefined> {
-    const stored = await this.getStoredGatewayValue(this.systemAccountAddress, this.buildTokenPolicyStorageKey(identifier));
+  private async getTokenPolicyFromGateway(
+    identifier: string,
+  ): Promise<DrwaTokenPolicy | undefined> {
+    const stored = await this.getStoredGatewayValue(
+      this.systemAccountAddress,
+      this.buildTokenPolicyStorageKey(identifier),
+    );
     if (!stored) {
       return undefined;
     }
@@ -517,11 +616,12 @@ export class DrwaService {
       identifier,
       regulated: true,
       drwaEnabled: decoded.drwaEnabled,
-      policyId: decoded.policyId,
       tokenPolicyVersion: decoded.tokenPolicyVersion ?? stored.version,
       globalPause: decoded.globalPause,
       strictAuditorMode: decoded.strictAuditorMode,
       metadataProtectionEnabled: decoded.metadataProtectionEnabled,
+      travelRuleRequired: decoded.travelRuleRequired,
+      sanctionsScreeningEnabled: decoded.sanctionsScreeningEnabled,
       allowedInvestorClasses: decoded.allowedInvestorClasses,
       allowedJurisdictions: decoded.allowedJurisdictions,
       whitePaperCid: decoded.whitePaperCid,
@@ -530,8 +630,13 @@ export class DrwaService {
     });
   }
 
-  private async getAssetRecordFromGateway(identifier: string): Promise<DrwaAssetRecord | undefined> {
-    const stored = await this.getStoredGatewayValue(this.systemAccountAddress, this.buildAssetRecordStorageKey(identifier));
+  private async getAssetRecordFromGateway(
+    identifier: string,
+  ): Promise<DrwaAssetRecord | undefined> {
+    const stored = await this.getStoredGatewayValue(
+      this.systemAccountAddress,
+      this.buildAssetRecordStorageKey(identifier),
+    );
     if (!stored) {
       return undefined;
     }
@@ -546,7 +651,6 @@ export class DrwaService {
       identifier,
       carrierType: decoded.carrierType,
       assetClass: decoded.assetClass,
-      policyId: decoded.policyId,
       regulated: decoded.regulated,
       windDownInitiated: decoded.windDownInitiated,
       windDownRound: decoded.windDownRound,
@@ -554,13 +658,19 @@ export class DrwaService {
     });
   }
 
-  private buildHolderMirrorStorageKey(address: string, tokenId: string): string {
+  private buildHolderMirrorStorageKey(
+    address: string,
+    tokenId: string,
+  ): string {
     const tokenHex = Buffer.from(tokenId, 'utf8').toString('hex');
     const addressHex = AddressUtils.bech32Decode(address);
     return `drwa:holder:${tokenHex}:${addressHex}`;
   }
 
-  private buildHolderAuditorAuthorizationStorageKey(address: string, tokenId: string): string {
+  private buildHolderAuditorAuthorizationStorageKey(
+    address: string,
+    tokenId: string,
+  ): string {
     const tokenHex = Buffer.from(tokenId, 'utf8').toString('hex');
     const addressHex = AddressUtils.bech32Decode(address);
     return `drwa:auditor:${tokenHex}:${addressHex}`;
@@ -576,17 +686,27 @@ export class DrwaService {
     return `drwa:asset:${tokenHex}:record`;
   }
 
-  private async getStoredGatewayValue(address: string, storageKey: string): Promise<{ version: number; body: Buffer } | undefined> {
+  private async getStoredGatewayValue(
+    address: string,
+    storageKey: string,
+  ): Promise<{ version: number; body: Buffer } | undefined> {
     const key = encodeURIComponent(storageKey);
     // eslint-disable-next-line require-await
-    const result = await this.gatewayService.get(`address/${address}/key/${key}`, GatewayComponentRequest.addressStorage, async (error) => {
-      const message = error?.response?.data?.error;
-      if (message?.includes('get value for key error') || message?.includes('account was not found')) {
-        return true;
-      }
+    const result = await this.gatewayService.get(
+      `address/${address}/key/${key}`,
+      GatewayComponentRequest.addressStorage,
+      async (error) => {
+        const message = error?.response?.data?.error;
+        if (
+          message?.includes('get value for key error') ||
+          message?.includes('account was not found')
+        ) {
+          return true;
+        }
 
-      return false;
-    });
+        return false;
+      },
+    );
 
     const value = this.extractGatewayStorageValue(result);
     if (!value) {
@@ -597,13 +717,17 @@ export class DrwaService {
   }
 
   private extractGatewayStorageValue(result: any): string | undefined {
-    return result?.value
-      ?? result?.pair?.value
-      ?? result?.data?.value
-      ?? result?.keyValuePair?.value;
+    return (
+      result?.value ??
+      result?.pair?.value ??
+      result?.data?.value ??
+      result?.keyValuePair?.value
+    );
   }
 
-  private tryParseStoredValue(rawValue: string): { version: number; body: Buffer } | undefined {
+  private tryParseStoredValue(
+    rawValue: string,
+  ): { version: number; body: Buffer } | undefined {
     const decoded = this.decodeStorageString(rawValue);
     if (!decoded) {
       return undefined;
@@ -611,7 +735,10 @@ export class DrwaService {
 
     try {
       const parsed = JSON.parse(decoded.toString('utf8'));
-      if (typeof parsed?.version !== 'number' || typeof parsed?.body !== 'string') {
+      if (
+        typeof parsed?.version !== 'number' ||
+        typeof parsed?.body !== 'string'
+      ) {
         return undefined;
       }
 
@@ -663,7 +790,8 @@ export class DrwaService {
       try {
         const parsed = JSON.parse(body.toString('utf8'));
         return {
-          holderPolicyVersion: parsed.holder_policy_version ?? parsed.holderPolicyVersion,
+          holderPolicyVersion:
+            parsed.holder_policy_version ?? parsed.holderPolicyVersion,
           kycStatus: parsed.kyc_status ?? parsed.kycStatus,
           amlStatus: parsed.aml_status ?? parsed.amlStatus,
           investorClass: parsed.investor_class ?? parsed.investorClass,
@@ -671,7 +799,16 @@ export class DrwaService {
           expiryRound: parsed.expiry_round ?? parsed.expiryRound,
           transferLocked: parsed.transfer_locked ?? parsed.transferLocked,
           receiveLocked: parsed.receive_locked ?? parsed.receiveLocked,
-          auditorAuthorized: parsed.auditor_authorized ?? parsed.auditorAuthorized,
+          auditorAuthorized:
+            parsed.auditor_authorized ?? parsed.auditorAuthorized,
+          lockUntilRound: parsed.lock_until_round ?? parsed.lockUntilRound,
+          travelRuleAttested:
+            parsed.travel_rule_attested ?? parsed.travelRuleAttested,
+          sanctionsCleared: parsed.sanctions_cleared ?? parsed.sanctionsCleared,
+          sanctionsScreeningCid:
+            parsed.sanctions_screening_cid ?? parsed.sanctionsScreeningCid,
+          uboParentEntity: parsed.ubo_parent_entity ?? parsed.uboParentEntity,
+          ownershipPct: parsed.ownership_pct ?? parsed.ownershipPct,
         };
       } catch {
         return {};
@@ -745,7 +882,9 @@ export class DrwaService {
     }
   }
 
-  private decodeHolderAuditorAuthorizationBody(body: Buffer): boolean | undefined {
+  private decodeHolderAuditorAuthorizationBody(
+    body: Buffer,
+  ): boolean | undefined {
     if (body.length === 0) {
       return undefined;
     }
@@ -770,7 +909,9 @@ export class DrwaService {
     return value === 1;
   }
 
-  private decodeTokenPolicyBody(body: Buffer): Partial<DrwaTokenPolicy> | undefined {
+  private decodeTokenPolicyBody(
+    body: Buffer,
+  ): Partial<DrwaTokenPolicy> | undefined {
     if (body.length === 0 || body[0] !== 123) {
       return undefined;
     }
@@ -784,18 +925,31 @@ export class DrwaService {
       drwaEnabled: parsed.drwa_enabled ?? parsed.drwaEnabled,
       globalPause: parsed.global_pause ?? parsed.globalPause,
       strictAuditorMode: parsed.strict_auditor_mode ?? parsed.strictAuditorMode,
-      metadataProtectionEnabled: parsed.metadata_protection_enabled ?? parsed.metadataProtectionEnabled,
-      allowedInvestorClasses: this.parseStringCollection(parsed.allowed_investor_classes ?? parsed.allowedInvestorClasses),
-      allowedJurisdictions: this.parseStringCollection(parsed.allowed_jurisdictions ?? parsed.allowedJurisdictions),
-      tokenPolicyVersion: parsed.token_policy_version ?? parsed.tokenPolicyVersion,
+      metadataProtectionEnabled:
+        parsed.metadata_protection_enabled ?? parsed.metadataProtectionEnabled,
+      travelRuleRequired:
+        parsed.travel_rule_required ?? parsed.travelRuleRequired,
+      sanctionsScreeningEnabled:
+        parsed.sanctions_screening_enabled ?? parsed.sanctionsScreeningEnabled,
+      allowedInvestorClasses: this.parseStringCollection(
+        parsed.allowed_investor_classes ?? parsed.allowedInvestorClasses,
+      ),
+      allowedJurisdictions: this.parseStringCollection(
+        parsed.allowed_jurisdictions ?? parsed.allowedJurisdictions,
+      ),
+      tokenPolicyVersion:
+        parsed.token_policy_version ?? parsed.tokenPolicyVersion,
       whitePaperCid: parsed.white_paper_cid ?? parsed.whitePaperCid,
-      registrationStatus: parsed.registration_status ?? parsed.registrationStatus,
+      registrationStatus:
+        parsed.registration_status ?? parsed.registrationStatus,
       windDownInitiated: parsed.wind_down_initiated ?? parsed.windDownInitiated,
-      policyId: parsed.policy_id ?? parsed.policyId,
     };
   }
 
-  private decodeAssetRecordBody(tokenId: string, body: Buffer): Partial<DrwaAssetRecord> | undefined {
+  private decodeAssetRecordBody(
+    tokenId: string,
+    body: Buffer,
+  ): Partial<DrwaAssetRecord> | undefined {
     if (body.length === 0) {
       return undefined;
     }
@@ -809,20 +963,17 @@ export class DrwaService {
 
       return {
         tokenId,
-        policyId: parsed.policy_id ?? parsed.policyId,
         regulated: parsed.regulated ?? true,
-        windDownInitiated: parsed.wind_down_initiated ?? parsed.windDownInitiated,
+        windDownInitiated:
+          parsed.wind_down_initiated ?? parsed.windDownInitiated,
         windDownRound: parsed.wind_down_round ?? parsed.windDownRound,
         registeredRound: parsed.registered_round ?? parsed.registeredRound,
       };
     }
 
     if (body[0] === 0) {
-      const payload = body.subarray(1).toString('utf8');
-      const separator = payload.indexOf(':');
       return {
         tokenId,
-        policyId: separator >= 0 ? payload.slice(separator + 1) : undefined,
         regulated: true,
         windDownInitiated: false,
       };
@@ -846,7 +997,9 @@ export class DrwaService {
 
   private parseStringCollection(value: unknown): string[] {
     if (Array.isArray(value)) {
-      return value.filter((entry): entry is string => typeof entry === 'string');
+      return value.filter(
+        (entry): entry is string => typeof entry === 'string',
+      );
     }
 
     if (value && typeof value === 'object') {

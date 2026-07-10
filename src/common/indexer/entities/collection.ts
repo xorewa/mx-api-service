@@ -30,7 +30,6 @@ export interface Collection {
   nft_scamInfoDescription?: string;
   drwa?: {
     regulated?: boolean;
-    policyId?: string;
     tokenPolicyVersion?: number;
     globalPause?: boolean;
     strictAuditorMode?: boolean;

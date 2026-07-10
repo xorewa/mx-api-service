@@ -8,9 +8,6 @@ export class DrwaTokenPolicyHistoryEntry {
   @ApiProperty({ type: String })
   eventType: string = '';
 
-  @ApiProperty({ type: String, nullable: true })
-  policyId: string | undefined = undefined;
-
   @ApiProperty({ type: Boolean, nullable: true })
   regulated: boolean | undefined = undefined;
 
@@ -77,9 +74,6 @@ export class DrwaTokenPolicy {
   @ApiProperty({ type: Boolean, nullable: true })
   drwaEnabled: boolean | undefined = undefined;
 
-  @ApiProperty({ type: String, nullable: true })
-  policyId: string | undefined = undefined;
-
   @ApiProperty({ type: Number, nullable: true })
   tokenPolicyVersion: number | undefined = undefined;
 
@@ -91,6 +85,12 @@ export class DrwaTokenPolicy {
 
   @ApiProperty({ type: Boolean, nullable: true })
   metadataProtectionEnabled: boolean | undefined = undefined;
+
+  @ApiProperty({ type: Boolean, nullable: true })
+  travelRuleRequired: boolean | undefined = undefined;
+
+  @ApiProperty({ type: Boolean, nullable: true })
+  sanctionsScreeningEnabled: boolean | undefined = undefined;
 
   @ApiProperty({ type: [String], nullable: true })
   allowedInvestorClasses: string[] | undefined = undefined;
