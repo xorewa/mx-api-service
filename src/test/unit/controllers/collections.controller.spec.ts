@@ -26,6 +26,7 @@ import { TransferModule } from "src/endpoints/transfers/transfer.module";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { mockEventEmitterService } from "./services.mock/event.emitter2.services.mock";
 import { PersistenceModule } from "src/common/persistence/persistence.module";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('CollectionController', () => {
   let app: INestApplication;
@@ -35,6 +36,7 @@ describe('CollectionController', () => {
   const nftServiceMocks = mockNftService();
   const transactionServiceMocks = mockTransactionService();
   const transferServiceMocks = mockTransferService();
+  const redisClientMock = {};
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -55,10 +57,15 @@ describe('CollectionController', () => {
       .overrideProvider(TransactionService).useValue(transactionServiceMocks)
       .overrideProvider(TransferService).useValue(transferServiceMocks)
       .overrideProvider(EventEmitter2).useValue(mockEventEmitterService())
+      .overrideProvider(REDIS_CLIENT_TOKEN).useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   describe('GET /collections', () => {

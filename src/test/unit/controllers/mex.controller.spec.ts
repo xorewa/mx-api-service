@@ -12,6 +12,7 @@ import { PublicAppModule } from "src/public.app.module";
 import { QueryPagination } from "src/common/entities/query.pagination";
 import { MexPairExchange } from "src/endpoints/mex/entities/mex.pair.exchange";
 import { MexPairsFilter } from 'src/endpoints/mex/entities/mex.pairs..filter';
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('MexController', () => {
   let app: INestApplication;
@@ -22,6 +23,7 @@ describe('MexController', () => {
   const mexPairServiceMocks = mockMexPairService();
   const mexTokensServiceMocks = mockMexTokensService();
   const mexFarmsServiceMocks = mockMexFarmsService();
+  const redisClientMock = {};
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -33,10 +35,15 @@ describe('MexController', () => {
       .overrideProvider(MexPairService).useValue(mexPairServiceMocks)
       .overrideProvider(MexTokenService).useValue(mexTokensServiceMocks)
       .overrideProvider(MexFarmService).useValue(mexFarmsServiceMocks)
+      .overrideProvider(REDIS_CLIENT_TOKEN).useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   describe('GET /mex/setting', () => {

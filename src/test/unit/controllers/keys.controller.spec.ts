@@ -5,11 +5,13 @@ import { KeysController } from "src/endpoints/keys/keys.controller";
 import { KeysService } from "src/endpoints/keys/keys.service";
 import request = require('supertest');
 import { PublicAppModule } from "src/public.app.module";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('KeysController', () => {
   let app: INestApplication;
   const path: string = "/keys";
   const keysServiceMocks = mockKeysService();
+  const redisClientMock = {};
 
   beforeAll(async () => {
     jest.resetAllMocks();
@@ -19,6 +21,8 @@ describe('KeysController', () => {
     })
       .overrideProvider(KeysService)
       .useValue(keysServiceMocks)
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -56,5 +60,9 @@ describe('KeysController', () => {
         .get(`${path}/${blsKey}/unbond-period`)
         .expect(400);
     });
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 });

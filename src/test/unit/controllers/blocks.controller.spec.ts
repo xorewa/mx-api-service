@@ -7,11 +7,13 @@ import request = require('supertest');
 import { PublicAppModule } from "src/public.app.module";
 import { QueryPagination } from "src/common/entities/query.pagination";
 import { SortOrder } from "src/common/entities/sort.order";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe("BlockController", () => {
   let app: INestApplication;
   const path = "/blocks";
   const blockServiceMock = mockBlockService();
+  const redisClientMock = {};
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -21,6 +23,8 @@ describe("BlockController", () => {
     })
       .overrideProvider(BlockService)
       .useValue(blockServiceMock)
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -317,7 +321,7 @@ describe("BlockController", () => {
     });
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await app.close();
   });
 

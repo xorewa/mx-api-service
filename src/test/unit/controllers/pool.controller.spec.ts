@@ -11,12 +11,14 @@ import { TransactionType } from "src/endpoints/transactions/entities/transaction
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { mockEventEmitterService } from "./services.mock/event.emitter2.services.mock";
 import { PersistenceModule } from "src/common/persistence/persistence.module";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('PoolController', () => {
   let app: INestApplication;
   const path = '/pool';
 
   const poolServiceMocks = mockPoolService();
+  const redisClientMock = {};
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -31,10 +33,16 @@ describe('PoolController', () => {
       .useValue(poolServiceMocks)
       .overrideProvider(EventEmitter2)
       .useValue(mockEventEmitterService())
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   describe('GET /pool', () => {

@@ -8,11 +8,13 @@ import { DelegationService } from "src/endpoints/delegation/delegation.service";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { mockEventEmitterService } from "./services.mock/event.emitter2.services.mock";
 import { PersistenceModule } from "src/common/persistence/persistence.module";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('DelegationController', () => {
   let app: INestApplication;
   const path: string = "/delegation";
   const delegationServiceMocks = mockDelegationService();
+  const redisClientMock = {};
 
   beforeAll(async () => {
     jest.resetAllMocks();
@@ -28,6 +30,8 @@ describe('DelegationController', () => {
       .useValue(delegationServiceMocks)
       .overrideProvider(EventEmitter2)
       .useValue(mockEventEmitterService())
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();

@@ -5,11 +5,13 @@ import { RoundService } from "src/endpoints/rounds/round.service";
 import { PublicAppModule } from "src/public.app.module";
 import { Test } from "@nestjs/testing";
 import request = require('supertest');
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('RoundController', () => {
   let app: INestApplication;
   const path: string = "/rounds";
   const roundServiceMocks = mockRoundService();
+  const redisClientMock = {};
 
   beforeAll(async () => {
     jest.resetAllMocks();
@@ -19,6 +21,8 @@ describe('RoundController', () => {
     })
       .overrideProvider(RoundService)
       .useValue(roundServiceMocks)
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -176,5 +180,9 @@ describe('RoundController', () => {
         .get(`${path}/${shard}/${round}`)
         .expect(404);
     });
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 });

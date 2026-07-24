@@ -7,6 +7,8 @@ import { AssetsService } from "src/common/assets/assets.service";
 import { AccountAssets } from "src/common/assets/entities/account.assets";
 import { AccountAssetsSocial } from "src/common/assets/entities/account.assets.social";
 import { QueryPagination } from "src/common/entities/query.pagination";
+import { NetworkConfig } from "src/common/gateway/entities/network.config";
+import { NetworkStatus } from "src/common/gateway/entities/network.status";
 import { GatewayService } from "src/common/gateway/gateway.service";
 import { IndexerService } from "src/common/indexer/indexer.service";
 import { PluginService } from "src/common/plugins/plugin.service";
@@ -33,9 +35,12 @@ import { VmQueryService } from "src/endpoints/vm.query/vm.query.service";
 describe('Account Service', () => {
   let service: AccountService;
   let indexerService: IndexerService;
+  let gatewayService: GatewayService;
   let cacheService: CacheService;
+  let vmQueryService: VmQueryService;
   let apiService: ApiService;
   let apiConfigService: ApiConfigService;
+  let protocolService: ProtocolService;
   let transactionService: TransactionService;
   let transferService: TransferService;
   let smartContractResultService: SmartContractResultService;
@@ -70,6 +75,7 @@ describe('Account Service', () => {
             getGuardianData: jest.fn(),
             getAddressDetails: jest.fn(),
             getNetworkStatus: jest.fn(),
+            getNetworkConfig: jest.fn(),
           },
         },
         {
@@ -164,9 +170,12 @@ describe('Account Service', () => {
 
     service = moduleRef.get<AccountService>(AccountService);
     indexerService = moduleRef.get<IndexerService>(IndexerService);
+    gatewayService = moduleRef.get<GatewayService>(GatewayService);
     cacheService = moduleRef.get<CacheService>(CacheService);
+    vmQueryService = moduleRef.get<VmQueryService>(VmQueryService);
     apiService = moduleRef.get<ApiService>(ApiService);
     apiConfigService = moduleRef.get<ApiConfigService>(ApiConfigService);
+    protocolService = moduleRef.get<ProtocolService>(ProtocolService);
     transactionService = moduleRef.get<TransactionService>(TransactionService);
     transferService = moduleRef.get<TransferService>(TransferService);
     smartContractResultService = moduleRef.get<SmartContractResultService>(SmartContractResultService);
@@ -179,6 +188,51 @@ describe('Account Service', () => {
 
   it('service should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('getDeferredAccount', () => {
+    const address = 'erd1qga7ze0l03chfgru0a32wxqf2226nzrxnyhzer9lmudqhjgy7ycqjjyknz';
+    const delegationContractAddress = 'erd1qqqqqqqqqqqqqpgq2scv8xgnu9tz885twzy8kgqxleyxu3emd8sstp2tgr';
+
+    function configureDeferredAccount(roundDurationInMilliseconds: number): void {
+      jest.spyOn(apiConfigService, 'getDelegationContractAddress').mockReturnValue(delegationContractAddress);
+      jest.spyOn(protocolService, 'getShardCount').mockResolvedValue(3);
+      jest.spyOn(vmQueryService, 'vmQuery')
+        .mockResolvedValueOnce(['ZA==', 'ZQ=='])
+        .mockResolvedValueOnce(['Cg==']);
+      jest.spyOn(gatewayService, 'getNetworkStatus').mockResolvedValue(new NetworkStatus({ erd_nonce: 106 }));
+      jest.spyOn(gatewayService, 'getNetworkConfig').mockResolvedValue(new NetworkConfig({ erd_round_duration: roundDurationInMilliseconds }));
+    }
+
+    it('should derive deferred-payment seconds from a 600 ms network round duration', async () => {
+      configureDeferredAccount(600);
+
+      const result = await service.getDeferredAccount(address);
+
+      expect(result).toEqual([{ deferredPayment: '100', secondsLeft: 3 }]);
+      expect(gatewayService.getNetworkConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it('should preserve the six-second-network result when the configured duration is 6000 ms', async () => {
+      configureDeferredAccount(6000);
+
+      const result = await service.getDeferredAccount(address);
+
+      expect(result).toEqual([{ deferredPayment: '100', secondsLeft: 30 }]);
+    });
+
+    it('should fail explicitly when network round duration is unavailable', async () => {
+      configureDeferredAccount(0);
+
+      await expect(service.getDeferredAccount(address)).rejects.toThrow('Network round duration is unavailable or invalid');
+    });
+
+    it('should fail explicitly when network configuration is unavailable', async () => {
+      configureDeferredAccount(600);
+      jest.spyOn(gatewayService, 'getNetworkConfig').mockResolvedValue(undefined as unknown as NetworkConfig);
+
+      await expect(service.getDeferredAccount(address)).rejects.toThrow('Network round duration is unavailable or invalid');
+    });
   });
 
   describe('getAccountsCount', () => {

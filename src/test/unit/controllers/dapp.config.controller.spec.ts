@@ -25,6 +25,10 @@ describe('DappConfigController', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    await app.close();
+  });
+
   describe('GET /dapp/config', () => {
     it('should return dapp config details', async () => {
       dappConfigServiceMock.getDappConfiguration.mockReturnValue({});

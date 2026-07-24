@@ -5,11 +5,13 @@ import { PublicAppModule } from "src/public.app.module";
 import { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request = require('supertest');
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('DelegationLegacyController', () => {
   let app: INestApplication;
   const path: string = "/delegation-legacy";
   const delegationLegacyServiceMocks = mockDelegationService();
+  const redisClientMock = {};
 
   beforeAll(async () => {
     jest.resetAllMocks();
@@ -19,6 +21,8 @@ describe('DelegationLegacyController', () => {
     })
       .overrideProvider(DelegationLegacyService)
       .useValue(delegationLegacyServiceMocks)
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();

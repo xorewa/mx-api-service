@@ -32,6 +32,7 @@ import request = require('supertest');
 import { mockAccountService, mockTokenService, mockNftService, mockDelegationLegacyService, mockWaitingListService, mockStakeService, mockTransactionService, mockSmartContractResultService, mockCollectionService, mockTransferService, mockApiConfigService, mockDelegationService } from "./services.mock/account.services.mock";
 import { AccountFetchOptions } from "src/endpoints/accounts/entities/account.fetch.options";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 import { mockEventEmitterService } from "./services.mock/event.emitter2.services.mock";
 import { PersistenceModule } from "src/common/persistence/persistence.module";
 
@@ -40,6 +41,7 @@ describe('AccountController', () => {
   const path = "/accounts";
 
   const accountServiceMocks = mockAccountService();
+  const redisClientMock = {};
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -76,13 +78,17 @@ describe('AccountController', () => {
       .overrideProvider(ApiConfigService).useValue(mockApiConfigService())
       .overrideProvider(DelegationService).useValue(mockDelegationService())
       .overrideProvider(EventEmitter2).useValue(mockEventEmitterService())
+      .overrideProvider(REDIS_CLIENT_TOKEN).useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
   });
 
-  afterEach(() => { jest.clearAllMocks(); });
+  afterEach(async () => {
+    await app.close();
+    jest.clearAllMocks();
+  });
 
   describe("GET /accounts", () => {
     it('should return the default list of 25 accounts', async () => {
@@ -559,10 +565,6 @@ describe('AccountController', () => {
 
   });
 
-  afterAll(async () => {
-    await app.close();
-  });
-
   function createMockAccountsList(numberOfAccounts: number, ownerAddress = null, includeSmartContracts = false) {
     return Array.from({ length: numberOfAccounts }, (_, index) => {
       const isSmartContractAddress = includeSmartContracts && Math.random() < 0.5;
@@ -610,5 +612,3 @@ describe('AccountController', () => {
     return address.substring(0, desiredLength + 'erd1'.length);
   }
 });
-
-

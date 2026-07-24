@@ -6,11 +6,13 @@ import { IdentitiesController } from "src/endpoints/identities/identities.contro
 import { PublicAppModule } from "src/public.app.module";
 import { IdentitiesService } from "src/endpoints/identities/identities.service";
 import { IdentitySortCriteria } from "src/endpoints/identities/entities/identity.sort.criteria";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('IdentityController', () => {
   let app: INestApplication;
   const path: string = "/identities";
   const identitiesServiceMocks = mockIdentityService();
+  const redisClientMock = {};
 
   beforeAll(async () => {
     jest.resetAllMocks();
@@ -20,6 +22,8 @@ describe('IdentityController', () => {
     })
       .overrideProvider(IdentitiesService)
       .useValue(identitiesServiceMocks)
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();

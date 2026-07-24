@@ -9,11 +9,13 @@ import { QueryPagination } from "src/common/entities/query.pagination";
 import { EventEmitter2, EventEmitterModule } from "@nestjs/event-emitter";
 import { mockEventEmitterService } from "./services.mock/event.emitter2.services.mock";
 import { PersistenceModule } from "src/common/persistence/persistence.module";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('ShardController', () => {
   let app: INestApplication;
   const path: string = "/shards";
   const shardServiceMock = mockShardService();
+  const redisClientMock = {};
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -28,6 +30,8 @@ describe('ShardController', () => {
       .useValue(shardServiceMock)
       .overrideProvider(EventEmitter2)
       .useValue(mockEventEmitterService())
+      .overrideProvider(REDIS_CLIENT_TOKEN)
+      .useValue(redisClientMock)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -68,5 +72,9 @@ describe('ShardController', () => {
       expect(shardServiceMock.getShards).toHaveBeenCalledWith(
         new QueryPagination({ from: 0, size: 25 }));
     });
+  });
+
+  afterAll(async () => {
+    await app.close();
   });
 });

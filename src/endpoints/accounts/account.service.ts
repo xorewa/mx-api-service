@@ -411,6 +411,7 @@ export class AccountService {
       {
         erd_nonce,
       },
+      networkConfig,
     ] = await Promise.all([
       this.vmQueryService.vmQuery(
         delegationContractAddress,
@@ -423,10 +424,15 @@ export class AccountService {
         'getNumBlocksBeforeUnBond',
       ),
       this.gatewayService.getNetworkStatus(`${delegationContractShardId}`),
+      this.gatewayService.getNetworkConfig(),
     ]);
 
     const numBlocksBeforeUnBond = parseInt(BinaryUtils.base64ToBigInt(encodedNumBlocksBeforeUnBond).toString());
     const erdNonce = erd_nonce;
+    const roundDurationInMilliseconds = networkConfig?.erd_round_duration;
+    if (!Number.isFinite(roundDurationInMilliseconds) || roundDurationInMilliseconds <= 0) {
+      throw new Error('Network round duration is unavailable or invalid');
+    }
 
     const data: AccountDeferred[] = encodedUserDeferredPaymentList.reduce((result: AccountDeferred[], _, index, array) => {
       if (index % 2 === 0) {
@@ -435,7 +441,11 @@ export class AccountService {
         const deferredPayment = BinaryUtils.base64ToBigInt(encodedDeferredPayment).toString();
         const unstakedNonce = parseInt(BinaryUtils.base64ToBigInt(encodedUnstakedNonce).toString());
         const blocksLeft = Math.max(0, unstakedNonce + numBlocksBeforeUnBond - erdNonce);
-        const secondsLeft = blocksLeft * 6; // 6 seconds per block
+        // The deferred-payment endpoint reports a wall-clock estimate. Derive it
+        // from the active chain configuration instead of assuming six seconds
+        // per block, and round a positive partial second up to avoid reporting
+        // it as elapsed on a 600 ms network.
+        const secondsLeft = Math.ceil((blocksLeft * roundDurationInMilliseconds) / 1000);
 
         result.push({ deferredPayment, secondsLeft });
       }

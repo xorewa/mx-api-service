@@ -11,12 +11,14 @@ import { PublicAppModule } from "src/public.app.module";
 import { SmartContractResultOptions } from "src/endpoints/sc-results/entities/smart.contract.result.options";
 import { PoolService } from "src/endpoints/pool/pool.service";
 import { mockPoolService } from "./services.mock/pool.services.mock";
+import { REDIS_CLIENT_TOKEN } from "@multiversx/sdk-nestjs-redis";
 
 describe('CollectionController', () => {
   let app: INestApplication;
   const path = '/results';
   const scResultsServiceMocks = mockScResultsService();
   const poolServiceMocks = mockPoolService();
+  const redisClientMock = {};
 
   beforeEach(async () => {
     jest.resetAllMocks();
@@ -28,10 +30,15 @@ describe('CollectionController', () => {
     })
       .overrideProvider(SmartContractResultService).useValue(scResultsServiceMocks)
       .overrideProvider(PoolService).useValue(poolServiceMocks)
+      .overrideProvider(REDIS_CLIENT_TOKEN).useValue(redisClientMock)
       .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
   });
 
   describe('GET /results', () => {
