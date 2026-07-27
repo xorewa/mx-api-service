@@ -2,9 +2,9 @@ name: Chain simulator e2e tests workflow
 
 on:
   push:
-    branches: [main, development]
+    branches: [NewArc]
   pull_request:
-    branches: [main, development]
+    branches: [NewArc]
 
 jobs:
   test-chainsimulator-e2e:
