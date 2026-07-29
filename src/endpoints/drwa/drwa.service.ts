@@ -691,20 +691,19 @@ export class DrwaService {
     storageKey: string,
   ): Promise<{ version: number; body: Buffer } | undefined> {
     const key = encodeURIComponent(storageKey);
-    // eslint-disable-next-line require-await
     const result = await this.gatewayService.get(
       `address/${address}/key/${key}`,
       GatewayComponentRequest.addressStorage,
-      async (error) => {
+      (error) => {
         const message = error?.response?.data?.error;
         if (
           message?.includes('get value for key error') ||
           message?.includes('account was not found')
         ) {
-          return true;
+          return Promise.resolve(true);
         }
 
-        return false;
+        return Promise.resolve(false);
       },
     );
 

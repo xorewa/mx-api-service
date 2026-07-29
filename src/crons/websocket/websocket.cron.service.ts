@@ -137,13 +137,14 @@ export class WebsocketCronService implements OnModuleInit {
     const latestRoundOnChainData = await this.getLatestRoundOnChainData();
     latestRoundOnChainData.timestampMs = latestRoundOnChainData.timestampMs ?? latestRoundOnChainData.timestamp * 1000;
 
+    const stats = await this.networkService.getStats();
     let roundToProcessTimestampMs = await this.cacheService.getOrSetLocal(
       CacheInfo.WsTimestampMsToProcess().key,
-      async () => await Promise.resolve(latestRoundOnChainData.timestampMs ?? latestRoundOnChainData.timestamp * 1000),
+      // A subscription is real-time: do not replay data that was finalized before
+      // the first subscriber registered. Start with the next finalized bucket.
+      async () => await Promise.resolve((latestRoundOnChainData.timestampMs ?? latestRoundOnChainData.timestamp * 1000) + stats.refreshRate),
       CacheInfo.WsTimestampMsToProcess().ttl,
     );
-
-    const stats = await this.networkService.getStats();
 
     const pollingDelay = stats.refreshRate / 2;
     const pollingMaxAttempts = 10;

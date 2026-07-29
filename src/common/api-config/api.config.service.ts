@@ -149,6 +149,15 @@ export class ApiConfigService {
     return redisUrl;
   }
 
+  getRedisPort(): number {
+    const redisPort = this.configService.get<number>('urls.redisPort') ?? 6379;
+    if (!Number.isInteger(redisPort) || redisPort <= 0 || redisPort > 65535) {
+      throw new Error('Invalid redis port');
+    }
+
+    return redisPort;
+  }
+
   getRabbitmqUrl(): string {
     const rabbitmqUrl = this.configService.get<string>('urls.rabbitmq');
     if (!rabbitmqUrl) {
@@ -582,6 +591,21 @@ export class ApiConfigService {
 
   getRateLimiterSecret(): string | undefined {
     return this.configService.get<string>('rateLimiterSecret');
+  }
+
+  getRateLimiterOptions(): { ttl: number; limit: number } {
+    const ttl = this.configService.get<number>('rateLimiter.ttl') ?? 60_000;
+    const limit = this.configService.get<number>('rateLimiter.limit') ?? 100;
+
+    if (!Number.isInteger(ttl) || ttl <= 0) {
+      throw new Error('Invalid rateLimiter.ttl value');
+    }
+
+    if (!Number.isInteger(limit) || limit <= 0) {
+      throw new Error('Invalid rateLimiter.limit value');
+    }
+
+    return { ttl, limit };
   }
 
   getInflationAmounts(): number[] {

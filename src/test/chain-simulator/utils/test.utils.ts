@@ -13,8 +13,7 @@ export class ChainSimulatorUtils {
       let retries = 0;
       while (retries < maxRetries) {
         try {
-          const networkStatus = await axios.get(`${config.chainSimulatorUrl}/network/status/4294967295`);
-          const currentEpoch = networkStatus.data.erd_epoch_number;
+          const currentEpoch = await this.getSimulatorEpoch();
 
           if (currentEpoch >= targetEpoch) {
             return true;
@@ -25,9 +24,10 @@ export class ChainSimulatorUtils {
             {},
           );
 
-          // Verify we reached the target epoch
-          const stats = await axios.get(`${config.apiServiceUrl}/stats`);
-          const newEpoch = stats.data.epoch;
+          // Fixture preparation runs before the API service starts in CI. Verify
+          // epoch advancement against the simulator itself, rather than its API
+          // projection, so the helper has no hidden startup-order dependency.
+          const newEpoch = await this.getSimulatorEpoch();
 
           if (newEpoch >= targetEpoch) {
             return true;
@@ -71,6 +71,17 @@ export class ChainSimulatorUtils {
     }
 
     return false;
+  }
+
+  private static async getSimulatorEpoch(): Promise<number> {
+    const response = await axios.get(`${config.chainSimulatorUrl}/network/status/4294967295`);
+    const epoch = response.data?.data?.status?.erd_epoch_number;
+
+    if (!Number.isInteger(epoch)) {
+      throw new Error('Chain simulator returned an invalid network status response');
+    }
+
+    return epoch;
   }
 
   public static async deployPingPongSc(deployer: string): Promise<string> {

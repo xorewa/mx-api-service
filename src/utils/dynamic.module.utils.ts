@@ -27,6 +27,7 @@ export class DynamicModuleUtils {
         new RedisCacheModuleOptions(
           {
             host: apiConfigService.getRedisUrl(),
+            port: this.getRedisPort(apiConfigService),
           },
           {
             poolLimit: apiConfigService.getPoolLimit(),
@@ -46,6 +47,7 @@ export class DynamicModuleUtils {
       imports: [ApiConfigModule],
       useFactory: (apiConfigService: ApiConfigService) => new RedisCacheModuleOptions({
         host: apiConfigService.getRedisUrl(),
+        port: this.getRedisPort(apiConfigService),
         connectTimeout: 10000,
       }),
       inject: [ApiConfigService],
@@ -80,7 +82,7 @@ export class DynamicModuleUtils {
           transport: Transport.REDIS,
           options: {
             host: apiConfigService.getRedisUrl(),
-            port: 6379,
+            port: this.getRedisPort(apiConfigService),
             retryDelay: 1000,
             retryAttempts: 10,
             retryStrategy: () => 1000,
@@ -91,5 +93,13 @@ export class DynamicModuleUtils {
       },
       inject: [ApiConfigService],
     };
+  }
+
+  private static getRedisPort(apiConfigService: ApiConfigService): number {
+    // Older test doubles and third-party configuration adapters may implement
+    // the historical URL-only Redis contract. Production ApiConfigService
+    // instances always provide the configured port; retain Redis' standard
+    // default solely for that backwards-compatible adapter path.
+    return apiConfigService.getRedisPort?.() ?? 6379;
   }
 }

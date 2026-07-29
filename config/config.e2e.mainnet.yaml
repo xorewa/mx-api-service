@@ -6,6 +6,11 @@ api:
   private: true
   privatePort: 4001
   websocket: true
+rateLimiter:
+  # Keep the production default (100/minute) outside this dedicated E2E profile.
+  # The simulator suite generates more than 100 same-origin requests per minute.
+  ttl: 60000
+  limit: 10000
 cron:
   cacheWarmer: true
   fastWarm: false
@@ -158,6 +163,9 @@ urls:
   ipfs: 'https://ipfs.io/ipfs'
   socket: 'socket-api-fra.multiversx.com'
   maiarId: 'https://id-api.multiversx.com'
+  # Use an isolated Redis instance for the chain-simulator suite. Production
+  # profiles retain the ApiConfigService default of 6379.
+  redisPort: 6380
 indexer:
   type: 'elastic'
   maxPagination: 10000

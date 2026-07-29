@@ -1236,12 +1236,12 @@ describe('Accounts e2e tests with chain simulator', () => {
       const countResponse = await axios.get(`${config.apiServiceUrl}/accounts/${config.aliceAddress}/transfers/count?token=${token}`);
       const expectedCount = countResponse.data;
 
-      const response = await axios.get(`${config.apiServiceUrl}/accounts/${config.aliceAddress}/transfers?token=${token}`);
+      const response = await axios.get(`${config.apiServiceUrl}/accounts/${config.aliceAddress}/transfers?token=${token}&withOperations=true`);
       expect(response.status).toBe(200);
       expect(response.data.length).toStrictEqual(expectedCount);
 
       for (const transfer of response.data) {
-        expect(transfer.action.arguments.transfers[0].token).toBe(token);
+        expect(transfer.operations.some((operation: any) => operation.identifier === token)).toBe(true);
         expect(transfer.function).toBe('ESDTTransfer');
       }
     });

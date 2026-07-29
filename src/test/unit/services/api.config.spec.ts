@@ -245,6 +245,32 @@ describe('API Config', () => {
     });
   });
 
+  describe("getRedisPort", () => {
+    it("should use the default redis port when no override is configured", () => {
+      jest
+        .spyOn(ConfigService.prototype, "get")
+        .mockImplementation(jest.fn(() => undefined));
+
+      expect(apiConfigService.getRedisPort()).toEqual(6379);
+    });
+
+    it("should return a configured redis port", () => {
+      jest
+        .spyOn(ConfigService.prototype, "get")
+        .mockImplementation(jest.fn(() => 6380));
+
+      expect(apiConfigService.getRedisPort()).toEqual(6380);
+    });
+
+    it("should reject an invalid redis port", () => {
+      jest
+        .spyOn(ConfigService.prototype, "get")
+        .mockImplementation(jest.fn(() => 0));
+
+      expect(() => apiConfigService.getRedisPort()).toThrowError('Invalid redis port');
+    });
+  });
+
   describe("getRabbitmqUrl", () => {
     it("should return rabbitmq url", () => {
       jest
@@ -1054,6 +1080,32 @@ describe('API Config', () => {
 
       const results = apiConfigService.getRateLimiterSecret();
       expect(results).toEqual(undefined);
+    });
+  });
+
+  describe("getRateLimiterOptions", () => {
+    it("should use the production-safe defaults when no override is configured", () => {
+      jest
+        .spyOn(ConfigService.prototype, "get")
+        .mockImplementation(jest.fn(() => undefined));
+
+      expect(apiConfigService.getRateLimiterOptions()).toEqual({ ttl: 60000, limit: 100 });
+    });
+
+    it("should return configured positive integer values", () => {
+      jest
+        .spyOn(ConfigService.prototype, "get")
+        .mockImplementation(jest.fn((key: string) => key === 'rateLimiter.ttl' ? 60000 : 10000));
+
+      expect(apiConfigService.getRateLimiterOptions()).toEqual({ ttl: 60000, limit: 10000 });
+    });
+
+    it("should reject invalid rate limiter configuration", () => {
+      jest
+        .spyOn(ConfigService.prototype, "get")
+        .mockImplementation(jest.fn((key: string) => key === 'rateLimiter.ttl' ? 0 : 100));
+
+      expect(() => apiConfigService.getRateLimiterOptions()).toThrowError('Invalid rateLimiter.ttl value');
     });
   });
 

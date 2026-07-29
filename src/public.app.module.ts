@@ -11,6 +11,8 @@ import { DynamicModuleUtils } from './utils/dynamic.module.utils';
 import { LocalCacheController } from './endpoints/caching/local.cache.controller';
 import { RestrictedRoutesMiddleware } from './utils/restricted.routes.middleware';
 import { ApiMetricsModule } from './common/metrics/api.metrics.module';
+import { ApiConfigModule } from './common/api-config/api.config.module';
+import { ApiConfigService } from './common/api-config/api.config.service';
 import { PersistenceModule } from './common/persistence/persistence.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -27,7 +29,13 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
     EndpointsControllersModule.forRoot(),
     DynamicModuleUtils.getRedisCacheModule(),
     ApiMetricsModule,
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRootAsync({
+      imports: [ApiConfigModule],
+      inject: [ApiConfigService],
+      useFactory: (apiConfigService: ApiConfigService) => [
+        apiConfigService.getRateLimiterOptions(),
+      ],
+    }),
   ],
   controllers: [
     LocalCacheController,
