@@ -13,19 +13,25 @@ async function prepareTestData() {
     await fundAddress(config.chainSimulatorUrl, config.aliceAddress);
     console.log('✓ Funded address');
 
-    await issueMultipleEsdts(config.chainSimulatorUrl, config.aliceAddress, 5);
+    const tokenIdentifiers = await issueMultipleEsdts(config.chainSimulatorUrl, config.aliceAddress, 5);
     console.log('✓ Issued ESDTs');
 
     await issueMultipleNftsCollections(config.chainSimulatorUrl, config.aliceAddress, 2, 5, 'both');
     console.log('✓ Issued NFT collections');
 
-    await issueMultipleMetaESDTCollections(config.chainSimulatorUrl, config.aliceAddress, 2, 5);
+    const metaEsdtCollectionIdentifiers = await issueMultipleMetaESDTCollections(config.chainSimulatorUrl, config.aliceAddress, 2, 5);
     console.log('✓ Issued Meta-ESDT collections');
 
     await ChainSimulatorUtils.deployPingPongSc(config.aliceAddress);
     console.log('✓ Deployed PingPong smart contract');
 
-    await new Promise((resolve) => setTimeout(resolve, 30000));
+    console.log('Waiting for API/indexer projections to contain the seeded fixtures...');
+    await ChainSimulatorUtils.waitForApiFixtureReadiness(
+      tokenIdentifiers,
+      metaEsdtCollectionIdentifiers,
+      5,
+    );
+    console.log('✓ API/indexer projections contain the seeded fixtures');
 
     console.log('Test data preparation completed successfully!');
   } catch (error) {

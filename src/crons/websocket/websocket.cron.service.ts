@@ -158,12 +158,17 @@ export class WebsocketCronService implements OnModuleInit {
         this.transfersCustomGateway.pushTransfersForTimestampMs(roundToProcessTimestampMs),
       ]);
       roundToProcessTimestampMs += stats.refreshRate;
+
+      // Store the next unprocessed timestamp immediately after this bucket was
+      // emitted. The next bucket may still be too recent for Elastic to have
+      // indexed its successor; if that readiness poll times out, retrying must
+      // resume from that bucket rather than replaying already delivered data.
+      this.cacheService.setLocal(
+        CacheInfo.WsTimestampMsToProcess().key,
+        roundToProcessTimestampMs,
+        CacheInfo.WsTimestampMsToProcess().ttl,
+      );
     }
-    this.cacheService.setLocal(
-      CacheInfo.WsTimestampMsToProcess().key,
-      roundToProcessTimestampMs,
-      CacheInfo.WsTimestampMsToProcess().ttl,
-    );
   }
 
   @Cron('*/10 * * * * *')

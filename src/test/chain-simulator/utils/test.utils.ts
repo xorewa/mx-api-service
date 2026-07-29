@@ -5,6 +5,57 @@ import { fundAddress } from './chain.simulator.operations';
 import { deploySc } from './chain.simulator.operations';
 import fs from 'fs';
 export class ChainSimulatorUtils {
+  static async waitForApiFixtureReadiness(
+    tokenIdentifiers: string[],
+    metaEsdtCollectionIdentifiers: string[],
+    expectedTransactionsPerMetaEsdtCollection: number,
+    maxRetries: number = 120,
+    retryIntervalMs: number = 2000,
+  ): Promise<void> {
+    let lastFailure = 'API fixture readiness has not been checked yet';
+
+    for (let retry = 1; retry <= maxRetries; retry++) {
+      try {
+        const [tokensResponse, accountTokensResponse, ...metaEsdtTransactionsResponses] = await Promise.all([
+          axios.get(`${config.apiServiceUrl}/tokens?size=10000`),
+          axios.get(`${config.apiServiceUrl}/accounts/${config.aliceAddress}/tokens?size=10000`),
+          ...metaEsdtCollectionIdentifiers.map(identifier =>
+            axios.get(`${config.apiServiceUrl}/collections/${identifier}/transactions?size=10000`),
+          ),
+        ]);
+
+        const indexedTokenIdentifiers = new Set(tokensResponse.data.map((token: { identifier: string }) => token.identifier));
+        const aliceTokenIdentifiers = new Set(accountTokensResponse.data.map((token: { identifier: string }) => token.identifier));
+        const missingIndexedTokens = tokenIdentifiers.filter(identifier => !indexedTokenIdentifiers.has(identifier));
+        const missingAliceTokens = tokenIdentifiers.filter(identifier => !aliceTokenIdentifiers.has(identifier));
+        const incompleteMetaEsdtCollections = metaEsdtTransactionsResponses
+          .map((response, index) => ({
+            identifier: metaEsdtCollectionIdentifiers[index],
+            transactionCount: response.data.length,
+          }))
+          .filter(collection => collection.transactionCount < expectedTransactionsPerMetaEsdtCollection);
+
+        if (missingIndexedTokens.length === 0 && missingAliceTokens.length === 0 && incompleteMetaEsdtCollections.length === 0) {
+          return;
+        }
+
+        lastFailure = [
+          missingIndexedTokens.length > 0 && `tokens not indexed: ${missingIndexedTokens.join(', ')}`,
+          missingAliceTokens.length > 0 && `tokens not visible for Alice: ${missingAliceTokens.join(', ')}`,
+          incompleteMetaEsdtCollections.length > 0 && `MetaESDT transactions incomplete: ${incompleteMetaEsdtCollections.map(collection => `${collection.identifier}=${collection.transactionCount}/${expectedTransactionsPerMetaEsdtCollection}`).join(', ')}`,
+        ].filter(Boolean).join('; ');
+      } catch (error: any) {
+        lastFailure = error.message ?? String(error);
+      }
+
+      if (retry < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, retryIntervalMs));
+      }
+    }
+
+    throw new Error(`Timed out waiting for chain-simulator fixtures to reach the API after ${maxRetries * retryIntervalMs / 1000} seconds: ${lastFailure}`);
+  }
+
   static async waitForEpoch(targetEpoch: number = 2, maxRetries: number = 50) {
     try {
       // First check if simulator is running
