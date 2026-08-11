@@ -93,10 +93,15 @@ export class ProviderService {
   }
 
   async getProvidersWithStakeInformation(): Promise<Provider[]> {
+    // This is the cache that actually gates /providers' HTTP response
+    // staleness (getFilteredProviders -> here, not the inner getAllProviders
+    // cache) -- shares the same config-driven TTL as that inner cache, since
+    // both express the same "how fresh does provider data need to be"
+    // concern, and the cache-warmer cron below refreshes both together.
     return await this.cachingService.getOrSet(
       CacheInfo.ProvidersWithStakeInformation.key,
       async () => await this.getProvidersWithStakeInformationRaw(),
-      CacheInfo.ProvidersWithStakeInformation.ttl
+      this.apiConfigService.getProvidersCacheTtl()
     );
   }
 
@@ -280,7 +285,7 @@ export class ProviderService {
     return await this.cachingService.getOrSet(
       CacheInfo.Providers.key,
       async () => await this.getAllProvidersRaw(),
-      CacheInfo.Providers.ttl
+      this.apiConfigService.getProvidersCacheTtl()
     );
   }
 

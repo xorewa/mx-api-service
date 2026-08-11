@@ -37,7 +37,7 @@ export class AssetsService {
     }
 
     const assetsCdnUrl = this.apiConfigService.getAssetsCdnUrl();
-    const network = this.apiConfigService.getNetwork();
+    const network = this.apiConfigService.getAssetsCdnNetwork();
 
     const { data: assetsRaw } = await this.apiService.get(`${assetsCdnUrl}/${network}/tokens`);
 
@@ -69,7 +69,7 @@ export class AssetsService {
     }
 
     const assetsCdnUrl = this.apiConfigService.getAssetsCdnUrl();
-    const network = this.apiConfigService.getNetwork();
+    const network = this.apiConfigService.getAssetsCdnNetwork();
 
     const { data: assets } = await this.apiService.get(`${assetsCdnUrl}/${network}/tokens`);
 
@@ -101,7 +101,7 @@ export class AssetsService {
     }
 
     const assetsCdnUrl = this.apiConfigService.getAssetsCdnUrl();
-    const network = this.apiConfigService.getNetwork();
+    const network = this.apiConfigService.getAssetsCdnNetwork();
 
     const { data: assets } = await this.apiService.get(`${assetsCdnUrl}/${network}/accounts`);
 
@@ -196,7 +196,7 @@ export class AssetsService {
     }
 
     const assetsCdnUrl = this.apiConfigService.getAssetsCdnUrl();
-    const network = this.apiConfigService.getNetwork();
+    const network = this.apiConfigService.getAssetsCdnNetwork();
 
     const { data: assets } = await this.apiService.get(`${assetsCdnUrl}/${network}/identities`);
 

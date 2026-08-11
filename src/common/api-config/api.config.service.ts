@@ -179,6 +179,28 @@ export class ApiConfigService {
     return this.configService.get<number>('caching.cacheTtl') ?? 6;
   }
 
+  // Shared by both CacheInfo.Providers (raw provider list) and
+  // CacheInfo.ProvidersWithStakeInformation (the cache that actually gates
+  // /providers' own HTTP response -- getFilteredProviders reads that one,
+  // not the raw list directly). Falls back to the 1-hour value both of
+  // those constants already carried, so every existing deployment's
+  // config.yaml keeps behaving exactly as before. In practice the
+  // per-minute cache-warmer cron (CacheWarmerService.handleProviderInvalidations,
+  // when its `cron.cacheWarmer` flag is active) keeps both well under this
+  // ceiling regardless of its value -- this TTL is only a fallback for how
+  // stale things get if that cron isn't running, not the primary freshness
+  // mechanism. Only meant to be overridden on a fast-moving/private network
+  // (e.g. a devnet chain-simulator); a real, high-traffic public network
+  // should keep the long default, which protects this service from
+  // re-computing provider data (a real network call per provider) on every
+  // request whenever the warmer cron happens to be down.
+  getProvidersCacheTtl(): number {
+    return (
+      this.configService.get<number>('caching.providersTtl') ??
+      Constants.oneHour()
+    );
+  }
+
   getNetwork(): string {
     const network = this.configService.get<string>('network');
     if (!network) {
@@ -186,6 +208,17 @@ export class ApiConfigService {
     }
 
     return network;
+  }
+
+  // Independent from getNetwork(): the top-level `network` key also drives
+  // dapp-config file lookups (dapp.config.service.ts) and DRWA governance
+  // scope matching (drwa.governance.service.ts), which are keyed to real
+  // network names (e.g. 'mainnet') regardless of which chain this instance
+  // actually points at. Overriding just this key lets an LDevnet/custom
+  // deployment fetch identity/token/account metadata from its own assets-cdn
+  // network folder without disturbing those other subsystems.
+  getAssetsCdnNetwork(): string {
+    return this.configService.get<string>('features.assetsFetch.network') ?? this.getNetwork();
   }
 
   getCluster(): string | undefined {

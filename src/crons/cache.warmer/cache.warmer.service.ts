@@ -174,10 +174,10 @@ export class CacheWarmerService {
   @Lock({ name: 'Providers invalidations', verbose: true })
   async handleProviderInvalidations() {
     const providers = await this.providerService.getAllProvidersRaw();
-    await this.invalidateKey(CacheInfo.Providers.key, providers, CacheInfo.Providers.ttl);
+    await this.invalidateKey(CacheInfo.Providers.key, providers, this.apiConfigService.getProvidersCacheTtl());
 
     const providersWithStakeInformation = await this.providerService.getProvidersWithStakeInformationRaw();
-    await this.invalidateKey(CacheInfo.ProvidersWithStakeInformation.key, providersWithStakeInformation, CacheInfo.ProvidersWithStakeInformation.ttl);
+    await this.invalidateKey(CacheInfo.ProvidersWithStakeInformation.key, providersWithStakeInformation, this.apiConfigService.getProvidersCacheTtl());
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
